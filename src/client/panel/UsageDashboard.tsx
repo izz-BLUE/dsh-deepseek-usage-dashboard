@@ -55,39 +55,81 @@ function CacheBar(props: { hit: number; miss: number }) {
   )
 }
 
-/** The 7-day trend as a CSS bar chart. */
+const TREND_WIDTH = 720
+const TREND_HEIGHT = 178
+const TREND_LEFT = 58
+const TREND_RIGHT = 704
+const TREND_TOP = 20
+const TREND_BOTTOM = 138
+
+/** The 7-day trend as a responsive line and area chart. */
 function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> }) {
   const max = Math.max(0, ...props.data.map(day => day.totalTokens))
-  const latestDate = props.data.at(-1)?.date
+  const total = props.data.reduce((sum, day) => sum + day.totalTokens, 0)
+  const divisor = props.data.length === 0 ? 1 : props.data.length
+  const points = props.data.map((day, index) => {
+    const x = props.data.length <= 1
+      ? (TREND_LEFT + TREND_RIGHT) / 2
+      : TREND_LEFT + ((TREND_RIGHT - TREND_LEFT) * index) / (props.data.length - 1)
+    const y = max === 0
+      ? TREND_BOTTOM
+      : TREND_BOTTOM - ((TREND_BOTTOM - TREND_TOP) * day.totalTokens) / max
+    return { ...day, x, y }
+  })
+  const linePoints = points.map(point => `${point.x},${point.y}`).join(' ')
+  const areaPath = points.length === 0
+    ? ''
+    : `M ${points[0]?.x},${TREND_BOTTOM} L ${linePoints.replaceAll(' ', ' L ')} L ${points.at(-1)?.x},${TREND_BOTTOM} Z`
+
   return (
-    <div className={css.trend} aria-label="7-day token usage">
-      {props.data.map(day => (
-        <div
-          key={day.date}
-          className={day.date === latestDate ? `${css.trendCol} ${css.trendToday}` : css.trendCol}
-        >
-          <span className={css.trendValue}>{formatCompactCount(day.totalTokens)}</span>
+    <div className={css.trend}>
+      <div className={css.trendSummary}>
+        <span>{tt('panel.trendTotal')} <strong>{formatCompactCount(total)}</strong></span>
+        <span>{tt('panel.trendAverage')} <strong>{formatCompactCount(Math.round(total / divisor))}</strong></span>
+      </div>
+
+      <svg
+        className={css.trendSvg}
+        viewBox={`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`}
+        role="img"
+        aria-label="7-day token usage"
+        preserveAspectRatio="none"
+      >
+        {[TREND_TOP, (TREND_TOP + TREND_BOTTOM) / 2, TREND_BOTTOM].map((y, index) => (
+          <g key={y} className={css.trendGrid}>
+            <line x1={TREND_LEFT} x2={TREND_RIGHT} y1={y} y2={y} />
+            <text x="4" y={y + 4}>
+              {index === 0 ? formatCompactCount(max) : index === 1 ? formatCompactCount(Math.round(max / 2)) : '0'}
+            </text>
+          </g>
+        ))}
+        {areaPath !== '' ? <path className={css.trendArea} d={areaPath} /> : null}
+        {linePoints !== '' ? <polyline className={css.trendLine} points={linePoints} /> : null}
+        {points.map((point, index) => (
+          <g key={point.date} className={index === points.length - 1 ? css.trendPointLatest : css.trendPoint}>
+            <circle cx={point.x} cy={point.y} r={point.totalTokens === 0 ? 3 : 5}>
+              <title>{`${point.date}: ${formatCount(point.totalTokens)}`}</title>
+            </circle>
+            {point.totalTokens > 0
+              ? <text className={css.trendPointValue} x={point.x} y={Math.max(14, point.y - 10)}>{formatCompactCount(point.totalTokens)}</text>
+              : null}
+            <text className={css.trendDate} x={point.x} y="168">{point.date.slice(5)}</text>
+          </g>
+        ))}
+      </svg>
+
+      <div className={css.trendMeters} aria-hidden="false">
+        {props.data.map(day => (
           <div
-            className={css.trendBarWrap}
+            key={day.date}
             role="meter"
             aria-label={`${day.date}: ${formatCount(day.totalTokens)}`}
             aria-valuemin={0}
             aria-valuemax={max}
             aria-valuenow={day.totalTokens}
-            title={`${day.date}: ${formatCount(day.totalTokens)}`}
-          >
-            {day.totalTokens > 0
-              ? (
-                <div
-                  className={css.trendBar}
-                  style={{ height: `${max === 0 ? 0 : Math.max(5, (day.totalTokens / max) * 100)}%` }}
-                />
-              )
-              : <span className={css.trendZero} />}
-          </div>
-          <span className={css.trendLabel}>{day.date.slice(5)}</span>
-        </div>
-      ))}
+          />
+        ))}
+      </div>
     </div>
   )
 }

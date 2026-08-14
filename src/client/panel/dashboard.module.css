@@ -216,114 +216,125 @@
 }
 
 .trendCard {
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  border-color: color-mix(in srgb, currentColor 12%, transparent);
   overflow: hidden;
-  padding: 16px 18px 12px;
+  padding: 14px 18px 10px;
 }
 
 .trend {
-  align-items: stretch;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  height: 156px;
-}
-
-.trendCol {
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-width: 0;
-  padding: 6px 4px 4px;
-  transition: background 160ms ease, transform 160ms ease;
-}
-
-.trendCol:hover {
-  background: var(--dsw-alias-fill-subtle, transparent);
-  transform: translateY(-2px);
-}
-
-.trendToday {
-  background: var(--dsw-alias-fill-subtle, transparent);
-  box-shadow: inset 0 0 0 1px var(--dsw-alias-stroke-default, transparent);
-}
-
-.trendValue {
-  color: var(--dsw-alias-label-secondary, inherit);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  line-height: 16px;
-  overflow: hidden;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trendBarWrap {
-  align-items: flex-end;
-  border-bottom: 1px solid var(--dsw-alias-stroke-default, transparent);
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  margin: 2px 2px 0;
-  min-height: 0;
+  color: var(--dsw-alias-label-tertiary, currentColor);
   position: relative;
 }
 
-.trendBar {
-  background: linear-gradient(
-    180deg,
-    var(--dsw-alias-fill-positive, var(--dsw-alias-fill-strong, #888)),
-    var(--dsw-alias-fill-strong, #888)
-  );
-  border-radius: 5px 5px 2px 2px;
-  box-shadow: 0 1px 3px var(--dsw-alias-shadow-default, transparent);
-  min-height: 5px;
-  opacity: 0.9;
-  transition: height 240ms ease, opacity 160ms ease;
-  width: min(64%, 46px);
+.trendSummary {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: flex-end;
+  min-height: 20px;
+  padding-right: 2px;
 }
 
-.trendCol:hover .trendBar,
-.trendToday .trendBar {
-  opacity: 1;
-}
-
-.trendZero {
-  background: var(--dsw-alias-stroke-strong, var(--dsw-alias-label-tertiary, #888));
-  border-radius: 999px;
-  bottom: -1px;
-  height: 2px;
-  opacity: 0.45;
-  position: absolute;
-  width: min(42%, 30px);
-}
-
-.trendLabel {
+.trendSummary span {
   color: var(--dsw-alias-label-secondary, inherit);
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
-  margin-top: 7px;
-  text-align: center;
 }
 
-.trendToday .trendLabel {
+.trendSummary strong {
   color: var(--dsw-alias-label-primary, inherit);
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+.trendSvg {
+  display: block;
+  height: 190px;
+  margin-top: 2px;
+  overflow: visible;
+  width: 100%;
+}
+
+.trendGrid line {
+  stroke: currentColor;
+  stroke-dasharray: 3 5;
+  stroke-opacity: 0.16;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.trendGrid text,
+.trendDate,
+.trendPointValue {
+  fill: currentColor;
+  font-family: inherit;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trendDate,
+.trendPointValue {
+  dominant-baseline: middle;
+  text-align: center;
+  text-anchor: middle;
+}
+
+.trendPointValue {
+  fill: var(--dsw-alias-label-primary, currentColor);
+  font-size: 10px;
   font-weight: 600;
 }
 
+.trendArea {
+  fill: var(--dsw-alias-fill-positive, currentColor);
+  opacity: 0.12;
+}
+
+.trendLine {
+  fill: none;
+  stroke: var(--dsw-alias-fill-positive, currentColor);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.trendPoint circle,
+.trendPointLatest circle {
+  fill: var(--dsw-alias-fill-subtle, currentColor);
+  stroke: var(--dsw-alias-fill-positive, currentColor);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.trendPointLatest circle {
+  fill: var(--dsw-alias-fill-positive, currentColor);
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, currentColor 28%, transparent));
+}
+
+.trendMeters {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
-  .trend {
-    gap: 4px;
-  }
-
   .trendCard {
-    padding-inline: 8px;
+    padding-inline: 10px;
   }
 
-  .trendValue {
-    font-size: 9px;
+  .trendSvg {
+    height: 168px;
+  }
+
+  .trendSummary {
+    gap: 10px;
   }
 }
 

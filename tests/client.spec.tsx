@@ -86,6 +86,8 @@ describe('dashboard rendering', () => {
     expect(screen.getByText('赠送余额')).toBeDefined()
     expect(screen.getByText('充值余额')).toBeDefined()
     expect(screen.getByText('最近 7 天用量趋势')).toBeDefined()
+    expect(screen.getByText('7 天合计')).toBeDefined()
+    expect(screen.getByText('日均')).toBeDefined()
     expect(screen.getByText(/数据来源/)).toBeDefined() // footer line is one template string
     expect(screen.getByText(/1,234/)).toBeDefined() // grouped token counts
     expect(screen.getByText(/17\.\d%/)).toBeDefined() // hit rate
@@ -97,6 +99,8 @@ describe('dashboard rendering', () => {
     expect(screen.getByText('Estimated cost today')).toBeDefined()
     expect(screen.getByText('Available balance')).toBeDefined()
     expect(screen.getByText('Cache hit rate')).toBeDefined()
+    expect(screen.getByText('7-day total')).toBeDefined()
+    expect(screen.getByText('Daily average')).toBeDefined()
   })
 
   it('exposes all seven trend bars with exact accessible values', () => {

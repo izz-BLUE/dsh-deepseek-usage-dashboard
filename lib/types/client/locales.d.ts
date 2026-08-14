@@ -9,6 +9,8 @@ export declare const zh: {
     'panel.title': string;
     'panel.today': string;
     'panel.trend': string;
+    'panel.trendTotal': string;
+    'panel.trendAverage': string;
     'panel.refresh': string;
     'panel.refreshing': string;
     'panel.lastUpdated': string;
@@ -80,6 +82,8 @@ export declare const en: {
     'panel.title': string;
     'panel.today': string;
     'panel.trend': string;
+    'panel.trendTotal': string;
+    'panel.trendAverage': string;
     'panel.refresh': string;
     'panel.refreshing': string;
     'panel.lastUpdated': string;
