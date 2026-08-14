@@ -29,11 +29,23 @@ function formatAmount(total: string, currency: string): string {
   return `${currency === 'CNY' ? '¥' : `${currency} `}${total}`
 }
 
-/** A labeled stat card. */
-function StatCard(props: { label: string; value: string; hint?: string; accent?: boolean }) {
+type StatTone = 'accent' | 'positive' | 'danger'
+
+/** A labeled stat card with a compact, semantic visual treatment. */
+function StatCard(props: { label: string; value: string; hint?: string; icon: string; tone?: StatTone }) {
+  const toneClass = props.tone === 'accent'
+    ? css.statAccent
+    : props.tone === 'positive'
+      ? css.statPositive
+      : props.tone === 'danger'
+        ? css.statDanger
+        : ''
   return (
-    <div className={props.accent === true ? `${css.statCard} ${css.statAccent}` : css.statCard}>
-      <span className={css.statLabel}>{props.label}</span>
+    <div className={`${css.statCard} ${toneClass}`.trim()}>
+      <span className={css.statLabelRow}>
+        <span className={css.statIcon} aria-hidden="true">{props.icon}</span>
+        <span className={css.statLabel}>{props.label}</span>
+      </span>
       <span className={css.statValue}>{props.value}</span>
       {props.hint !== undefined ? <span className={css.statHint}>{props.hint}</span> : null}
     </div>
@@ -67,6 +79,10 @@ function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> 
   const max = Math.max(0, ...props.data.map(day => day.totalTokens))
   const total = props.data.reduce((sum, day) => sum + day.totalTokens, 0)
   const divisor = props.data.length === 0 ? 1 : props.data.length
+  const average = Math.round(total / divisor)
+  const averageY = max === 0
+    ? TREND_BOTTOM
+    : TREND_BOTTOM - ((TREND_BOTTOM - TREND_TOP) * average) / max
   const points = props.data.map((day, index) => {
     const x = props.data.length <= 1
       ? (TREND_LEFT + TREND_RIGHT) / 2
@@ -83,9 +99,12 @@ function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> 
 
   return (
     <div className={css.trend}>
-      <div className={css.trendSummary}>
-        <span>{tt('panel.trendTotal')} <strong>{formatCompactCount(total)}</strong></span>
-        <span>{tt('panel.trendAverage')} <strong>{formatCompactCount(Math.round(total / divisor))}</strong></span>
+      <div className={css.trendChartHeader}>
+        <strong className={css.trendChartTitle}>{tt('panel.trendChartTitle')}</strong>
+        <div className={css.trendLegend}>
+          <span><i className={css.legendTotal} />{tt('panel.trendTotalLegend')}</span>
+          <span><i className={css.legendAverage} />{tt('panel.trendAverage')}</span>
+        </div>
       </div>
 
       <svg
@@ -103,6 +122,13 @@ function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> 
             </text>
           </g>
         ))}
+        <line
+          className={css.trendAverageLine}
+          x1={TREND_LEFT}
+          x2={TREND_RIGHT}
+          y1={averageY}
+          y2={averageY}
+        />
         {areaPath !== '' ? <path className={css.trendArea} d={areaPath} /> : null}
         {linePoints !== '' ? <polyline className={css.trendLine} points={linePoints} /> : null}
         {points.map((point, index) => (
@@ -117,6 +143,11 @@ function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> 
           </g>
         ))}
       </svg>
+
+      <div className={css.trendSummary}>
+        <span>{tt('panel.trendTotal')} <strong>{formatCompactCount(total)}</strong></span>
+        <span>{tt('panel.trendAverage')} <strong>{formatCompactCount(average)}</strong></span>
+      </div>
 
       <div className={css.trendMeters} aria-hidden="false">
         {props.data.map(day => (
@@ -199,6 +230,12 @@ export function DashboardView(props: { snapshot: UsageStoreSnapshot; onRefresh: 
   const { snapshot, onRefresh } = props
   const data = snapshot.data
   const t = tt
+  const totalInput = data === null ? 0 : data.daily.cacheHitInputTokens + data.daily.cacheMissInputTokens
+  const cacheHitShare = data === null || totalInput === 0 ? null : data.daily.cacheHitInputTokens / totalInput
+  const cacheMissShare = data === null || totalInput === 0 ? null : data.daily.cacheMissInputTokens / totalInput
+  const failureRate = data === null || data.daily.requestCount === 0
+    ? 0
+    : data.daily.failedRequestCount / data.daily.requestCount
 
   return (
     <div className={css.page}>
@@ -246,23 +283,44 @@ export function DashboardView(props: { snapshot: UsageStoreSnapshot; onRefresh: 
             <section aria-label={t('panel.today')}>
               <h2 className={css.sectionTitle}>{t('panel.today')}</h2>
               <div className={css.grid}>
-                <StatCard label={t('panel.cacheHit')} value={formatCount(data.daily.cacheHitInputTokens)} />
-                <StatCard label={t('panel.cacheMiss')} value={formatCount(data.daily.cacheMissInputTokens)} />
-                <StatCard label={t('panel.output')} value={formatCount(data.daily.outputTokens)} />
+                <StatCard
+                  label={t('panel.cacheHit')}
+                  value={formatCount(data.daily.cacheHitInputTokens)}
+                  hint={t('panel.inputShare', { percent: cacheHitShare === null ? '--' : `${(cacheHitShare * 100).toFixed(1)}%` })}
+                  icon="⊙"
+                  tone="accent"
+                />
+                <StatCard
+                  label={t('panel.cacheMiss')}
+                  value={formatCount(data.daily.cacheMissInputTokens)}
+                  hint={t('panel.inputShare', { percent: cacheMissShare === null ? '--' : `${(cacheMissShare * 100).toFixed(1)}%` })}
+                  icon="⊖"
+                />
+                <StatCard label={t('panel.output')} value={formatCount(data.daily.outputTokens)} hint={t('panel.tokensUnit')} icon="↗" />
                 {data.daily.reasoningTokens > 0
-                  ? <StatCard label={t('panel.reasoning')} value={formatCount(data.daily.reasoningTokens)} />
+                  ? <StatCard label={t('panel.reasoning')} value={formatCount(data.daily.reasoningTokens)} hint={t('panel.tokensUnit')} icon="◷" />
                   : null}
                 <StatCard
                   label={t('panel.hitRate')}
                   value={data.daily.cacheHitRate === null ? '--' : `${(data.daily.cacheHitRate * 100).toFixed(1)}%`}
+                  hint={data.daily.cacheHitRate !== null && data.daily.cacheHitRate >= 0.9 ? t('panel.excellent') : undefined}
+                  icon="✓"
+                  tone="positive"
                 />
-                <StatCard label={t('panel.requestCount')} value={formatCount(data.daily.requestCount)} />
-                <StatCard label={t('panel.failedRequests')} value={formatCount(data.daily.failedRequestCount)} />
+                <StatCard label={t('panel.requestCount')} value={formatCount(data.daily.requestCount)} hint={t('panel.timesUnit')} icon="#" />
+                <StatCard
+                  label={t('panel.failedRequests')}
+                  value={formatCount(data.daily.failedRequestCount)}
+                  hint={t('panel.failureRate', { rate: `${(failureRate * 100).toFixed(2)}%` })}
+                  icon="!"
+                  tone={data.daily.failedRequestCount > 0 ? 'danger' : 'positive'}
+                />
                 <StatCard
                   label={t('panel.totalTokens')}
                   value={formatCount(data.daily.totalTokens)}
                   hint={t('panel.totalInput') + ` ${formatCount(data.daily.totalInputTokens)}`}
-                  accent
+                  icon="∑"
+                  tone="accent"
                 />
               </div>
               <CacheBar hit={data.daily.cacheHitInputTokens} miss={data.daily.cacheMissInputTokens} />

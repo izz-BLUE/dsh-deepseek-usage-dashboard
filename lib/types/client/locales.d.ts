@@ -11,6 +11,13 @@ export declare const zh: {
     'panel.trend': string;
     'panel.trendTotal': string;
     'panel.trendAverage': string;
+    'panel.trendChartTitle': string;
+    'panel.trendTotalLegend': string;
+    'panel.inputShare': string;
+    'panel.tokensUnit': string;
+    'panel.timesUnit': string;
+    'panel.excellent': string;
+    'panel.failureRate': string;
     'panel.refresh': string;
     'panel.refreshing': string;
     'panel.lastUpdated': string;
@@ -84,6 +91,13 @@ export declare const en: {
     'panel.trend': string;
     'panel.trendTotal': string;
     'panel.trendAverage': string;
+    'panel.trendChartTitle': string;
+    'panel.trendTotalLegend': string;
+    'panel.inputShare': string;
+    'panel.tokensUnit': string;
+    'panel.timesUnit': string;
+    'panel.excellent': string;
+    'panel.failureRate': string;
     'panel.refresh': string;
     'panel.refreshing': string;
     'panel.lastUpdated': string;

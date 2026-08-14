@@ -155,9 +155,10 @@
   box-shadow: 0 6px 20px color-mix(in srgb, currentColor 4%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   overflow: hidden;
-  padding: 13px 14px;
+  min-height: 78px;
+  padding: 14px 16px;
   position: relative;
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
@@ -194,6 +195,50 @@
   border-color: color-mix(in srgb, var(--usage-accent) 28%, transparent);
 }
 
+.statPositive {
+  border-color: color-mix(in srgb, var(--dsw-alias-fill-positive, #18a957) 26%, transparent);
+}
+
+.statDanger {
+  background: color-mix(in srgb, var(--dsw-alias-fill-danger, #f04452) 5%, transparent);
+  border-color: color-mix(in srgb, var(--dsw-alias-fill-danger, #f04452) 34%, transparent);
+}
+
+.statLabelRow {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.statIcon {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 50%;
+  box-sizing: border-box;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  display: inline-flex;
+  font-size: 9px;
+  height: 15px;
+  justify-content: center;
+  line-height: 1;
+  width: 15px;
+}
+
+.statAccent .statIcon,
+.statAccent .statValue {
+  color: var(--usage-accent-strong);
+}
+
+.statPositive .statIcon,
+.statPositive .statValue {
+  color: var(--dsw-alias-label-positive, var(--dsw-alias-fill-positive, #18a957));
+}
+
+.statDanger .statIcon,
+.statDanger .statValue {
+  color: var(--dsw-alias-label-danger, var(--dsw-alias-fill-danger, #f04452));
+}
+
 .statLabel {
   color: var(--dsw-alias-label-tertiary, inherit);
   font-size: 12px;
@@ -201,7 +246,7 @@
 
 .statValue {
   color: var(--dsw-alias-label-primary, inherit);
-  font-size: 19px;
+  font-size: 21px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -209,6 +254,7 @@
 .statHint {
   color: var(--dsw-alias-label-tertiary, inherit);
   font-size: 11px;
+  min-height: 14px;
 }
 
 .cacheBar {
@@ -337,13 +383,57 @@
   position: relative;
 }
 
+.trendChartHeader {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.trendChartTitle {
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.trendLegend {
+  align-items: center;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  display: flex;
+  font-size: 10px;
+  gap: 14px;
+}
+
+.trendLegend span {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.trendLegend i {
+  border-radius: 50%;
+  display: inline-block;
+  height: 7px;
+  width: 7px;
+}
+
+.legendTotal {
+  background: var(--usage-accent-strong);
+}
+
+.legendAverage {
+  background: color-mix(in srgb, currentColor 42%, transparent);
+}
+
 .trendSummary {
   align-items: center;
   display: flex;
   gap: 18px;
+  border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent);
   justify-content: flex-end;
   min-height: 20px;
-  padding-right: 2px;
+  padding: 10px 2px 0;
 }
 
 .trendSummary span {
@@ -361,7 +451,7 @@
 .trendSvg {
   display: block;
   height: 190px;
-  margin-top: 2px;
+  margin-top: 5px;
   overflow: visible;
   width: 100%;
 }
@@ -371,6 +461,14 @@
   stroke-dasharray: 3 5;
   stroke-opacity: 0.16;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.trendAverageLine {
+  stroke: currentColor;
+  stroke-dasharray: 5 5;
+  stroke-opacity: 0.36;
+  stroke-width: 1.25;
   vector-effect: non-scaling-stroke;
 }
 
