@@ -11,7 +11,7 @@ A standalone, installable Web UI plugin for [DeepSeek Harness](https://github.co
 
 ## Preview
 
-![DeepSeek API usage dashboard](./docs/dashboard-preview.png)
+![DeepSeek API usage dashboard](./docs/dashboard-preview-v2.png)
 
 Built **only on the official `@deepseek-ai/*` NPM SDK**. It never modifies DSH sources; installation goes through `cordis.patch.yml` + the profile plugin mechanism. The plugin **never calls any LLM interface**: capture, refresh, display, and balance queries perform zero model calls, so idle running and page refreshes cost 0 tokens.
 

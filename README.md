@@ -11,7 +11,7 @@
 
 ## 效果预览
 
-![DeepSeek API 用量仪表盘](./docs/dashboard-preview.png)
+![DeepSeek API 用量仪表盘](./docs/dashboard-preview-v2.png)
 
 仅基于官方 `@deepseek-ai/*` NPM SDK 开发；不修改任何 DSH 源码；通过 `cordis.patch.yml` + profile 插件机制安装。插件**全程不调用任何 LLM 接口**：统计、刷新、展示、余额查询零模型调用，空闲运行与刷新页面产生的 Token 为 0。
 
