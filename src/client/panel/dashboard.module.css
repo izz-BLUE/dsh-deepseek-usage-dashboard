@@ -216,42 +216,115 @@
 }
 
 .trendCard {
-  min-height: 120px;
+  overflow: hidden;
+  padding: 16px 18px 12px;
 }
 
 .trend {
-  align-items: flex-end;
-  display: flex;
-  gap: 8px;
-  height: 110px;
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  height: 156px;
 }
 
 .trendCol {
+  border-radius: 8px;
   display: flex;
-  flex: 1;
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  padding: 6px 4px 4px;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.trendCol:hover {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  transform: translateY(-2px);
+}
+
+.trendToday {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-stroke-default, transparent);
+}
+
+.trendValue {
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 16px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trendBarWrap {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--dsw-alias-stroke-default, transparent);
   display: flex;
   flex: 1;
   justify-content: center;
+  margin: 2px 2px 0;
+  min-height: 0;
+  position: relative;
 }
 
 .trendBar {
-  background: var(--dsw-alias-fill-strong, #888);
-  border-radius: 3px 3px 0 0;
-  min-height: 2px;
-  width: 70%;
+  background: linear-gradient(
+    180deg,
+    var(--dsw-alias-fill-positive, var(--dsw-alias-fill-strong, #888)),
+    var(--dsw-alias-fill-strong, #888)
+  );
+  border-radius: 5px 5px 2px 2px;
+  box-shadow: 0 1px 3px var(--dsw-alias-shadow-default, transparent);
+  min-height: 5px;
+  opacity: 0.9;
+  transition: height 240ms ease, opacity 160ms ease;
+  width: min(64%, 46px);
+}
+
+.trendCol:hover .trendBar,
+.trendToday .trendBar {
+  opacity: 1;
+}
+
+.trendZero {
+  background: var(--dsw-alias-stroke-strong, var(--dsw-alias-label-tertiary, #888));
+  border-radius: 999px;
+  bottom: -1px;
+  height: 2px;
+  opacity: 0.45;
+  position: absolute;
+  width: min(42%, 30px);
 }
 
 .trendLabel {
-  color: var(--dsw-alias-label-tertiary, inherit);
+  color: var(--dsw-alias-label-secondary, inherit);
   font-size: 10px;
-  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 7px;
   text-align: center;
+}
+
+.trendToday .trendLabel {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .trend {
+    gap: 4px;
+  }
+
+  .trendCard {
+    padding-inline: 8px;
+  }
+
+  .trendValue {
+    font-size: 9px;
+  }
 }
 
 .footer {

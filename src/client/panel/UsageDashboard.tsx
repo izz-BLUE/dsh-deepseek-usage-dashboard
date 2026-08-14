@@ -57,23 +57,52 @@ function CacheBar(props: { hit: number; miss: number }) {
 
 /** The 7-day trend as a CSS bar chart. */
 function TrendChart(props: { data: Array<{ date: string; totalTokens: number }> }) {
-  const max = Math.max(1, ...props.data.map(day => day.totalTokens))
+  const max = Math.max(0, ...props.data.map(day => day.totalTokens))
+  const latestDate = props.data.at(-1)?.date
   return (
-    <div className={css.trend}>
+    <div className={css.trend} aria-label="7-day token usage">
       {props.data.map(day => (
-        <div key={day.date} className={css.trendCol}>
-          <div className={css.trendBarWrap}>
-            <div
-              className={css.trendBar}
-              style={{ height: `${Math.max(2, (day.totalTokens / max) * 100)}%` }}
-              title={`${day.date}: ${formatCount(day.totalTokens)}`}
-            />
+        <div
+          key={day.date}
+          className={day.date === latestDate ? `${css.trendCol} ${css.trendToday}` : css.trendCol}
+        >
+          <span className={css.trendValue}>{formatCompactCount(day.totalTokens)}</span>
+          <div
+            className={css.trendBarWrap}
+            role="meter"
+            aria-label={`${day.date}: ${formatCount(day.totalTokens)}`}
+            aria-valuemin={0}
+            aria-valuemax={max}
+            aria-valuenow={day.totalTokens}
+            title={`${day.date}: ${formatCount(day.totalTokens)}`}
+          >
+            {day.totalTokens > 0
+              ? (
+                <div
+                  className={css.trendBar}
+                  style={{ height: `${max === 0 ? 0 : Math.max(5, (day.totalTokens / max) * 100)}%` }}
+                />
+              )
+              : <span className={css.trendZero} />}
           </div>
           <span className={css.trendLabel}>{day.date.slice(5)}</span>
         </div>
       ))}
     </div>
   )
+}
+
+/** Compact chart labels that stay readable from units through millions. */
+function formatCompactCount(value: number): string {
+  if (value < 1_000) return String(value)
+  if (value < 1_000_000) return `${trimDecimal(value / 1_000)}K`
+  if (value < 1_000_000_000) return `${trimDecimal(value / 1_000_000)}M`
+  return `${trimDecimal(value / 1_000_000_000)}B`
+}
+
+/** One decimal when useful, with trailing .0 removed. */
+function trimDecimal(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, '')
 }
 
 /** The balance detail block (non-null balance, narrowed once). */

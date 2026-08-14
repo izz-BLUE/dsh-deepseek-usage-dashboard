@@ -99,6 +99,21 @@ describe('dashboard rendering', () => {
     expect(screen.getByText('Cache hit rate')).toBeDefined()
   })
 
+  it('exposes all seven trend bars with exact accessible values', () => {
+    renderDashboard('zh')
+    const meters = screen.getAllByRole('meter')
+    expect(meters).toHaveLength(7)
+    expect(meters[0]?.getAttribute('aria-valuenow')).toBe('100')
+    expect(meters[0]?.getAttribute('aria-valuemax')).toBe('100')
+  })
+
+  it('keeps zero-usage trend days accessible without drawing a fake bar', () => {
+    document.documentElement.lang = 'zh'
+    const trend = SAMPLE.trend.map((day, index) => index === 0 ? { ...day, totalTokens: 0 } : day)
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: { ...SAMPLE, trend } }} onRefresh={() => undefined} />)
+    expect(screen.getByRole('meter', { name: '2026-01-01: 0' }).getAttribute('aria-valuenow')).toBe('0')
+  })
+
   it('shows the estimate note and price version', () => {
     renderDashboard('zh')
     expect(screen.getByText(/非官方账单/)).toBeDefined()
