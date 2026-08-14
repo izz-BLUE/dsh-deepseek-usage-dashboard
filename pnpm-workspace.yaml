@@ -1,0 +1,5 @@
+minimumReleaseAgeExclude:
+  # DeepSeek Harness currently publishes its mutually-dependent RC packages
+  # as one release train. Permit only that official scope through pnpm's
+  # minimum-release-age gate so a fresh Git install can resolve the SDK.
+  - '@deepseek-ai/*'
