@@ -4,28 +4,61 @@
  */
 
 .page {
+  --usage-accent: var(--dsw-alias-fill-accent, #5b7cfa);
+  --usage-accent-strong: var(--dsw-alias-label-link, #315efb);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   margin: 0 auto;
-  max-width: 920px;
+  max-width: 1120px;
   width: 100%;
 }
 
 .header {
   align-items: baseline;
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--dsw-alias-fill-subtle, currentColor) 5%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 11%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px color-mix(in srgb, currentColor 5%, transparent);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   justify-content: space-between;
+  overflow: hidden;
+  padding: 18px 20px;
+  position: relative;
+}
+
+.header::after {
+  background: linear-gradient(90deg, var(--usage-accent), var(--usage-accent-strong));
+  bottom: 0;
+  content: '';
+  height: 2px;
+  left: 20px;
+  opacity: 0.85;
+  position: absolute;
+  right: 20px;
 }
 
 .title {
+  align-items: center;
   color: var(--dsw-alias-label-primary, inherit);
+  display: flex;
   font-size: 20px;
   font-weight: 600;
+  gap: 10px;
   margin: 0;
+}
+
+.title::before {
+  background: linear-gradient(135deg, var(--usage-accent), var(--usage-accent-strong));
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--usage-accent) 10%, transparent);
+  content: '';
+  height: 9px;
+  width: 9px;
 }
 
 .headerActions {
@@ -40,15 +73,22 @@
 }
 
 .refresh {
-  background: var(--dsw-alias-fill-strong, transparent);
+  background: linear-gradient(135deg, var(--usage-accent), var(--usage-accent-strong));
   border: none;
-  border-radius: 6px;
-  color: var(--dsw-alias-label-on-strong, inherit);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--usage-accent) 22%, transparent);
+  color: var(--dsw-alias-label-on-strong, #fff);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
   line-height: 20px;
-  padding: 4px 12px;
+  padding: 5px 15px;
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.refresh:hover:not(:disabled) {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--usage-accent) 30%, transparent);
+  transform: translateY(-1px);
 }
 
 .refresh:disabled {
@@ -77,34 +117,81 @@
 }
 
 .noticeMuted {
+  align-self: flex-start;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 8%, transparent);
   color: var(--dsw-alias-label-tertiary, inherit);
 }
 
 .sectionTitle {
+  align-items: center;
   color: var(--dsw-alias-label-secondary, inherit);
+  display: flex;
   font-size: 13px;
   font-weight: 600;
+  gap: 8px;
   margin: 0 0 10px;
+}
+
+.sectionTitle::before {
+  background: linear-gradient(180deg, var(--usage-accent), var(--usage-accent-strong));
+  border-radius: 999px;
+  content: '';
+  height: 14px;
+  width: 3px;
 }
 
 .grid {
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .statCard {
-  background: var(--dsw-alias-fill-subtle, transparent);
-  border: 1px solid var(--dsw-alias-stroke-default, transparent);
-  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--dsw-alias-fill-subtle, currentColor) 5%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px color-mix(in srgb, currentColor 4%, transparent);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 12px;
+  overflow: hidden;
+  padding: 13px 14px;
+  position: relative;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.statCard::after {
+  background: linear-gradient(90deg, var(--usage-accent), var(--usage-accent-strong));
+  border-radius: 999px;
+  bottom: auto;
+  content: '';
+  height: 2px;
+  left: 14px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 14px;
+  top: 0;
+  transition: opacity 160ms ease;
+  width: auto;
+}
+
+.statCard:hover {
+  border-color: color-mix(in srgb, var(--usage-accent) 28%, transparent);
+  box-shadow: 0 9px 24px color-mix(in srgb, var(--usage-accent) 10%, transparent);
+  transform: translateY(-2px);
+}
+
+.statCard:hover::after,
+.statAccent::after {
+  opacity: 1;
 }
 
 .statAccent {
-  border-color: var(--dsw-alias-stroke-strong, transparent);
+  background: color-mix(in srgb, var(--usage-accent) 9%, transparent);
+  border-color: color-mix(in srgb, var(--usage-accent) 28%, transparent);
 }
 
 .statLabel {
@@ -114,7 +201,7 @@
 
 .statValue {
   color: var(--dsw-alias-label-primary, inherit);
-  font-size: 18px;
+  font-size: 19px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -125,9 +212,11 @@
 }
 
 .cacheBar {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  border-radius: 999px;
   display: flex;
-  height: 8px;
-  margin-top: 10px;
+  height: 9px;
+  margin-top: 12px;
   overflow: hidden;
   width: 100%;
 }
@@ -140,7 +229,7 @@
 }
 
 .cacheBarHit {
-  background: var(--dsw-alias-fill-positive, var(--dsw-alias-fill-strong, #888));
+  background: linear-gradient(90deg, var(--usage-accent), var(--usage-accent-strong));
   height: 100%;
 }
 
@@ -151,26 +240,42 @@
 
 .twoCol {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .estimateCard,
 .balanceCard,
 .trendCard {
-  background: var(--dsw-alias-fill-subtle, transparent);
-  border: 1px solid var(--dsw-alias-stroke-default, transparent);
-  border-radius: 8px;
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--dsw-alias-fill-subtle, currentColor) 5%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 8px 26px color-mix(in srgb, currentColor 4%, transparent);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 16px;
+  padding: 19px 20px;
+  position: relative;
+}
+
+.estimateCard::before,
+.balanceCard::before {
+  background: var(--usage-accent);
+  border-radius: 999px;
+  content: '';
+  height: 28px;
+  left: 0;
+  opacity: 0.8;
+  position: absolute;
+  top: 20px;
+  width: 3px;
 }
 
 .estimateValue,
 .balanceValue {
-  color: var(--dsw-alias-label-primary, inherit);
-  font-size: 22px;
+  color: var(--usage-accent-strong);
+  font-size: 24px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -216,10 +321,15 @@
 }
 
 .trendCard {
-  background: color-mix(in srgb, currentColor 3%, transparent);
-  border-color: color-mix(in srgb, currentColor 12%, transparent);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--usage-accent) 7%, transparent),
+    color-mix(in srgb, currentColor 2%, transparent) 60%,
+    color-mix(in srgb, var(--usage-accent-strong) 3%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--usage-accent) 18%, transparent);
   overflow: hidden;
-  padding: 14px 18px 10px;
+  padding: 16px 20px 12px;
 }
 
 .trend {
@@ -287,13 +397,14 @@
 }
 
 .trendArea {
-  fill: var(--dsw-alias-fill-positive, currentColor);
-  opacity: 0.12;
+  fill: var(--usage-accent);
+  opacity: 0.16;
 }
 
 .trendLine {
   fill: none;
-  stroke: var(--dsw-alias-fill-positive, currentColor);
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--usage-accent) 28%, transparent));
+  stroke: var(--usage-accent-strong);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.5;
@@ -302,15 +413,15 @@
 
 .trendPoint circle,
 .trendPointLatest circle {
-  fill: var(--dsw-alias-fill-subtle, currentColor);
-  stroke: var(--dsw-alias-fill-positive, currentColor);
+  fill: var(--dsw-alias-fill-subtle, #fff);
+  stroke: var(--usage-accent-strong);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
 .trendPointLatest circle {
-  fill: var(--dsw-alias-fill-positive, currentColor);
-  filter: drop-shadow(0 1px 3px color-mix(in srgb, currentColor 28%, transparent));
+  fill: var(--usage-accent-strong);
+  filter: drop-shadow(0 2px 5px color-mix(in srgb, var(--usage-accent) 40%, transparent));
 }
 
 .trendMeters {
@@ -339,11 +450,36 @@
 }
 
 .footer {
-  border-top: 1px solid var(--dsw-alias-stroke-default, transparent);
+  background: color-mix(in srgb, currentColor 2%, transparent);
+  border: 1px solid color-mix(in srgb, currentColor 7%, transparent);
+  border-radius: 10px;
   color: var(--dsw-alias-label-tertiary, inherit);
   display: flex;
   flex-direction: column;
   font-size: 11px;
   gap: 4px;
-  padding-top: 12px;
+  padding: 10px 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh,
+  .statCard {
+    transition: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    align-items: flex-start;
+  }
 }
