@@ -1,5 +1,7 @@
 # dsh-deepseek-usage-dashboard
 
+简体中文 | [English](./README.en.md)
+
 一个独立、可安装的 DeepSeek Harness（DSH）Web UI 插件，用于：
 
 - 从会话日志统计本 DSH 实例**每日 DeepSeek Token 用量**（仅精确 usage：缓存命中/未命中输入、输出、推理）；

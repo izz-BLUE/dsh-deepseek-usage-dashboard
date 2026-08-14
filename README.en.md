@@ -1,5 +1,7 @@
 # dsh-deepseek-usage-dashboard
 
+[简体中文](./README.md) | English
+
 A standalone, installable Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) that:
 
 - counts the **daily DeepSeek token usage** of this DSH instance from session logs (exact provider usage only — cache hit / cache miss input, output, reasoning),
