@@ -9,6 +9,10 @@
 - 监控 **DeepSeek 账户余额**（仅 Host 端调用，默认每 10 分钟刷新，支持手动刷新）；
 - 在 Web GUI 中以仪表盘、composer 底部统计行与设置卡片展示。
 
+## 效果预览
+
+![DeepSeek API 用量仪表盘](./docs/dashboard-preview.png)
+
 仅基于官方 `@deepseek-ai/*` NPM SDK 开发；不修改任何 DSH 源码；通过 `cordis.patch.yml` + profile 插件机制安装。插件**全程不调用任何 LLM 接口**：统计、刷新、展示、余额查询零模型调用，空闲运行与刷新页面产生的 Token 为 0。
 
 ## 功能

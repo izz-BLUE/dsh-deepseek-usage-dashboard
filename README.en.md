@@ -9,6 +9,10 @@ A standalone, installable Web UI plugin for [DeepSeek Harness](https://github.co
 - watches the **DeepSeek account balance** (Host-side, 10-minute refresh, manual refresh supported),
 - shows it all in a Web GUI dashboard, a composer dock line, and a settings card.
 
+## Preview
+
+![DeepSeek API usage dashboard](./docs/dashboard-preview.png)
+
 Built **only on the official `@deepseek-ai/*` NPM SDK**. It never modifies DSH sources; installation goes through `cordis.patch.yml` + the profile plugin mechanism. The plugin **never calls any LLM interface**: capture, refresh, display, and balance queries perform zero model calls, so idle running and page refreshes cost 0 tokens.
 
 ## Features
