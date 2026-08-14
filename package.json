@@ -37,7 +37,6 @@
   },
   "scripts": {
     "build": "tsc -b && tsdown",
-    "prepare": "tsdown",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run"
   },
