@@ -1,0 +1,265 @@
+/**
+ * Dashboard panel styles — DSH CSS tokens only (light/dark theme aware),
+ * no hardcoded theme colors.
+ */
+
+.page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: 920px;
+  width: 100%;
+}
+
+.header {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.title {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.headerActions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.updated {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 12px;
+}
+
+.refresh {
+  background: var(--dsw-alias-fill-strong, transparent);
+  border: none;
+  border-radius: 6px;
+  color: var(--dsw-alias-label-on-strong, inherit);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 4px 12px;
+}
+
+.refresh:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.empty {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 13px;
+  padding: 40px 0;
+  text-align: center;
+}
+
+.notice,
+.noticeMuted {
+  border-radius: 6px;
+  font-size: 12px;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.notice {
+  background: var(--dsw-alias-fill-warning, transparent);
+  color: var(--dsw-alias-label-warning, inherit);
+}
+
+.noticeMuted {
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+
+.sectionTitle {
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+
+.grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.statCard {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  border: 1px solid var(--dsw-alias-stroke-default, transparent);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.statAccent {
+  border-color: var(--dsw-alias-stroke-strong, transparent);
+}
+
+.statLabel {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 12px;
+}
+
+.statValue {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.statHint {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+}
+
+.cacheBar {
+  display: flex;
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.cacheBarEmpty {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  border-radius: 4px;
+  height: 100%;
+  width: 100%;
+}
+
+.cacheBarHit {
+  background: var(--dsw-alias-fill-positive, var(--dsw-alias-fill-strong, #888));
+  height: 100%;
+}
+
+.cacheBarMiss {
+  background: var(--dsw-alias-fill-neutral, var(--dsw-alias-fill-strong, #ccc));
+  height: 100%;
+}
+
+.twoCol {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.estimateCard,
+.balanceCard,
+.trendCard {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  border: 1px solid var(--dsw-alias-stroke-default, transparent);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.estimateValue,
+.balanceValue {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.estimateNote {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+}
+
+.estimateMeta {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+}
+
+.balanceState {
+  color: var(--dsw-alias-label-warning, inherit);
+  font-size: 12px;
+  margin: 0;
+}
+
+.balanceRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 0;
+}
+
+.balanceRow {
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+
+.balanceRow dt {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  margin: 0;
+}
+
+.balanceRow dd {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.trendCard {
+  min-height: 120px;
+}
+
+.trend {
+  align-items: flex-end;
+  display: flex;
+  gap: 8px;
+  height: 110px;
+}
+
+.trendCol {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.trendBarWrap {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+}
+
+.trendBar {
+  background: var(--dsw-alias-fill-strong, #888);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  width: 70%;
+}
+
+.trendLabel {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 10px;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.footer {
+  border-top: 1px solid var(--dsw-alias-stroke-default, transparent);
+  color: var(--dsw-alias-label-tertiary, inherit);
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 4px;
+  padding-top: 12px;
+}

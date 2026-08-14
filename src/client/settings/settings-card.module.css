@@ -1,0 +1,207 @@
+/**
+ * Settings card styles — DSH CSS tokens only.
+ */
+
+.card {
+  border: 1px solid var(--dsw-alias-stroke-default, transparent);
+  border-radius: 8px;
+  list-style: none;
+  margin: 0;
+}
+
+.cardOpen {
+  border-color: var(--dsw-alias-stroke-strong, transparent);
+}
+
+.header {
+  align-items: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.description {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 12px;
+}
+
+.chevron,
+.chevronOpen {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 12px;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.pending {
+  background: var(--dsw-alias-fill-warning, transparent);
+  border-radius: 4px;
+  color: var(--dsw-alias-label-warning, inherit);
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.body {
+  border-top: 1px solid var(--dsw-alias-stroke-default, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  color: var(--dsw-alias-label-primary, inherit);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+  margin: 0;
+}
+
+.input,
+.select,
+.priceInput {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  border: 1px solid var(--dsw-alias-stroke-default, transparent);
+  border-radius: 6px;
+  color: var(--dsw-alias-label-primary, inherit);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.select {
+  cursor: pointer;
+}
+
+.notExposed,
+.readOnly,
+.failed,
+.invalid {
+  font-size: 12px;
+  margin: 0;
+}
+
+.notExposed {
+  color: var(--dsw-alias-label-tertiary, inherit);
+}
+
+.readOnly {
+  color: var(--dsw-alias-label-warning, inherit);
+}
+
+.failed,
+.invalid {
+  color: var(--dsw-alias-label-danger, var(--dsw-alias-label-warning, inherit));
+}
+
+.footer {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.save,
+.discard,
+.reset,
+.addRow,
+.removeRow {
+  background: var(--dsw-alias-fill-subtle, transparent);
+  border: 1px solid var(--dsw-alias-stroke-default, transparent);
+  border-radius: 6px;
+  color: var(--dsw-alias-label-primary, inherit);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 3px 10px;
+}
+
+.save {
+  background: var(--dsw-alias-fill-strong, transparent);
+  color: var(--dsw-alias-label-on-strong, inherit);
+}
+
+.save:disabled,
+.discard:disabled,
+.reset:disabled,
+.addRow:disabled,
+.removeRow:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.pricesHead {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.pricesHead .label {
+  flex: 1;
+}
+
+.priceTable {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.priceRow,
+.priceRowHead {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr 0.7fr 1fr auto;
+}
+
+.priceRowHead {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+}
+
+.priceInput {
+  min-width: 0;
+  width: 100%;
+}
+
+.removeRow {
+  padding: 3px 8px;
+}
+
+.fallbackHint {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+  margin: 0;
+}

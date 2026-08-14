@@ -1,0 +1,64 @@
+/**
+ * Shared panel chrome: the sidebar entry row and the center-column view
+ * container. Colors come exclusively from DSH CSS tokens (--dsw-* / --dsh-*)
+ * so the plugin follows light and dark themes without hardcoded colors.
+ */
+
+/* The injected sidebar entry row. */
+.entry {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  gap: 8px;
+  line-height: 20px;
+  padding: 4px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.entry:hover {
+  background: var(--dsw-alias-fill-hover, transparent);
+  color: var(--dsw-alias-label-primary, inherit);
+}
+
+.entry[data-active='true'] {
+  background: var(--dsw-alias-fill-active, var(--dsw-alias-fill-hover, transparent));
+  color: var(--dsw-alias-label-primary, inherit);
+}
+
+.entryIcon {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+}
+
+.entryLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The center-column view container. */
+.view {
+  box-sizing: border-box;
+  display: none;
+  height: 100%;
+  overflow: auto;
+  padding: 24px;
+  width: 100%;
+}
+
+:global(html[data-dsh-usage-active='']) .view {
+  display: block;
+}
+
+:global(html[data-dsh-usage-active='']) :global([data-pane='conversation'] > :not([data-dsh-usage-view])) {
+  display: none !important;
+}

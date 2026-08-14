@@ -1,0 +1,12 @@
+# dsh-deepseek-usage-dashboard bundle patch: inserts its plugin row into the
+# web profile roster. The bundle is the official dsh plugin shape — install
+# it with `dsh plugin --profile <name> add <path-or-git-url>`.
+#
+# The single row mounts BOTH halves: the host side (session-log token
+# capture into SQLite, per-model cost estimation, DeepSeek balance watch,
+# /api/deepseek-usage routes) and the browser side (the "API 用量" sidebar
+# entry, the dashboard panel, the composer dock stats line, and the plugin
+# settings card, via the dsh.client declaration in package.json).
+- insert:
+    - id: deepseek-usage-dashboard
+      name: '@linxin666/dsh-deepseek-usage-dashboard'

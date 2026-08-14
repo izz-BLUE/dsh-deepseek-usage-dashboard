@@ -1,0 +1,153 @@
+/**
+ * The `deepseek-usage` namespace dictionaries: the dashboard panel, the
+ * composer dock line, the sidebar entry, and the plugin settings card.
+ */
+/** Simplified Chinese dictionary (the key-set source of truth). */
+export declare const zh: {
+    'entry.label': string;
+    'entry.tooltip': string;
+    'panel.title': string;
+    'panel.today': string;
+    'panel.trend': string;
+    'panel.refresh': string;
+    'panel.refreshing': string;
+    'panel.lastUpdated': string;
+    'panel.dataSource': string;
+    'panel.priceVersion': string;
+    'panel.priceUpdated': string;
+    'panel.estimateNote': string;
+    'panel.estimateLabel': string;
+    'panel.balance': string;
+    'panel.balanceUnavailable': string;
+    'panel.balanceStale': string;
+    'panel.cacheHit': string;
+    'panel.cacheMiss': string;
+    'panel.output': string;
+    'panel.reasoning': string;
+    'panel.totalInput': string;
+    'panel.totalTokens': string;
+    'panel.hitRate': string;
+    'panel.requestCount': string;
+    'panel.failedRequests': string;
+    'panel.available': string;
+    'panel.granted': string;
+    'panel.toppedUp': string;
+    'panel.totalBalance': string;
+    'panel.endpointFiltered': string;
+    'panel.endpointOk': string;
+    'panel.noData': string;
+    'panel.notConfigured': string;
+    'dock.today': string;
+    'settings.title': string;
+    'settings.description': string;
+    'settings.enabled': string;
+    'settings.enabledHint': string;
+    'settings.providerId': string;
+    'settings.providerIdHint': string;
+    'settings.refreshMinutes': string;
+    'settings.refreshMinutesHint': string;
+    'settings.prices': string;
+    'settings.pricesHint': string;
+    'settings.model': string;
+    'settings.hitPrice': string;
+    'settings.missPrice': string;
+    'settings.outputPrice': string;
+    'settings.currency': string;
+    'settings.effectiveFrom': string;
+    'settings.addRow': string;
+    'settings.removeRow': string;
+    'settings.invalidPrice': string;
+    'settings.fallbackModel': string;
+    'settings.save': string;
+    'settings.saving': string;
+    'settings.discard': string;
+    'settings.unsaved': string;
+    'settings.overridden': string;
+    'settings.reset': string;
+    'settings.saveFailed': string;
+    'settings.readOnly': string;
+    'settings.notExposed': string;
+    'settings.inherit': string;
+    'settings.on': string;
+    'settings.off': string;
+};
+/** The deepseek-usage key union. */
+export type UsageKey = keyof typeof zh;
+/** English dictionary, checked complete against the zh key set. */
+export declare const en: {
+    'entry.label': string;
+    'entry.tooltip': string;
+    'panel.title': string;
+    'panel.today': string;
+    'panel.trend': string;
+    'panel.refresh': string;
+    'panel.refreshing': string;
+    'panel.lastUpdated': string;
+    'panel.dataSource': string;
+    'panel.priceVersion': string;
+    'panel.priceUpdated': string;
+    'panel.estimateNote': string;
+    'panel.estimateLabel': string;
+    'panel.balance': string;
+    'panel.balanceUnavailable': string;
+    'panel.balanceStale': string;
+    'panel.cacheHit': string;
+    'panel.cacheMiss': string;
+    'panel.output': string;
+    'panel.reasoning': string;
+    'panel.totalInput': string;
+    'panel.totalTokens': string;
+    'panel.hitRate': string;
+    'panel.requestCount': string;
+    'panel.failedRequests': string;
+    'panel.available': string;
+    'panel.granted': string;
+    'panel.toppedUp': string;
+    'panel.totalBalance': string;
+    'panel.endpointFiltered': string;
+    'panel.endpointOk': string;
+    'panel.noData': string;
+    'panel.notConfigured': string;
+    'dock.today': string;
+    'settings.title': string;
+    'settings.description': string;
+    'settings.enabled': string;
+    'settings.enabledHint': string;
+    'settings.providerId': string;
+    'settings.providerIdHint': string;
+    'settings.refreshMinutes': string;
+    'settings.refreshMinutesHint': string;
+    'settings.prices': string;
+    'settings.pricesHint': string;
+    'settings.model': string;
+    'settings.hitPrice': string;
+    'settings.missPrice': string;
+    'settings.outputPrice': string;
+    'settings.currency': string;
+    'settings.effectiveFrom': string;
+    'settings.addRow': string;
+    'settings.removeRow': string;
+    'settings.invalidPrice': string;
+    'settings.fallbackModel': string;
+    'settings.save': string;
+    'settings.saving': string;
+    'settings.discard': string;
+    'settings.unsaved': string;
+    'settings.overridden': string;
+    'settings.reset': string;
+    'settings.saveFailed': string;
+    'settings.readOnly': string;
+    'settings.notExposed': string;
+    'settings.inherit': string;
+    'settings.on': string;
+    'settings.off': string;
+};
+/** Template values accepted by the interpolator. */
+export type TranslateValues = Record<string, string | number>;
+/** Interpolate {name} placeholders in one dictionary entry. */
+export declare function interpolate(template: string, values?: TranslateValues): string;
+/** Active dictionary, picked by the document language at call time. */
+export declare function dictionary(): Record<UsageKey, string>;
+/** Translate a key with optional {name} template params (current language). */
+export declare function tt(key: UsageKey, values?: TranslateValues): string;
+//# sourceMappingURL=locales.d.ts.map
