@@ -1,23 +1,30 @@
 /**
- * Time-aware pricing engine (Phase 1).
+ * Time-aware pricing engine (Phase 1) + the official DeepSeek 2026-08-17
+ * schedule (Phase 2).
  *
  * - Versioned schedules with an inclusive effectiveFrom instant
  * - Request-time-bound pricing (settlement time is irrelevant)
  * - Daily band windows: start inclusive / end exclusive, cross-midnight,
- *   all-day, implicit off-peak
+ *   all-day, implicit off-peak; several windows may share one band (bandId)
  * - Historical price protection: adding a later schedule never reprices old
  *   requests
  * - Unknown models → UNPRICED (never a silent fallback to a guessed rate);
  *   an explicit user `*` wildcard still works
  *
- * All window/rate fixtures below are SYNTHETIC and TEST ONLY — the real
- * 2026-08-17 DeepSeek pricing is not filled in until officially confirmed.
+ * The `SCHEDULE_B` / `SCHEDULE_C` fixtures below are SYNTHETIC and TEST ONLY
+ * (111/222/333 etc. — chosen to fail loudly on wrong selection). The official
+ * `DEEPSEEK_2026_08_17_SCHEDULE` fixture carries the REAL DeepSeek rates as
+ * published in the official pricing notice effective 2026-08-17 00:00
+ * Beijing Time, and the boundary fixtures verify it exactly.
  */
 
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_SCHEDULES,
+  DEEPSEEK_2026_08_17_SCHEDULE,
   LEGACY_SCHEDULE,
   aggregateDayCost,
+  bandForMinute,
   buildSchedulesFromPriceEntries,
   isInsideWindow,
   normalizeEffectiveFrom,
@@ -446,5 +453,184 @@ describe('pricingSetsEqual', () => {
     expect(pricingSetsEqual({ schedules: [LEGACY_SCHEDULE] }, { schedules: [renamed] })).toBe(false)
     const cheaper = { ...LEGACY_SCHEDULE, models: [{ ...LEGACY_SCHEDULE.models[0]!, ratesByBand: { 'all-day': { cacheHitInputPricePerMillion: 0.01, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2 } } }] }
     expect(pricingSetsEqual({ schedules: [LEGACY_SCHEDULE] }, { schedules: [cheaper] })).toBe(false)
+  })
+
+  it('is sensitive to window bandId changes', () => {
+    const shared: PricingSchedule = { ...SCHEDULE_B, windows: [{ id: 'peak-morning', bandId: 'peak', start: '09:00', end: '12:00' }] }
+    const asId: PricingSchedule = { ...SCHEDULE_B, windows: [{ id: 'peak-morning', start: '09:00', end: '12:00' }] }
+    expect(pricingSetsEqual({ schedules: [shared] }, { schedules: [asId] })).toBe(false)
+  })
+})
+
+describe('official DeepSeek 2026-08-17 schedule (Phase 2)', () => {
+  const OFFICIAL = prepareScheduleSet(DEFAULT_SCHEDULES)
+
+  const priced = (model: string, wall: string) => {
+    const resolved = resolvePricing(OFFICIAL, model, at(wall))
+    expect(resolved.status).toBe('priced')
+    if (resolved.status !== 'priced') throw new Error(`expected priced, got ${resolved.reason}`)
+    return resolved
+  }
+
+  it('ships the two built-in schedules with the official shape', () => {
+    expect(DEFAULT_SCHEDULES.map(schedule => schedule.id)).toEqual(['legacy-2026-04-24', 'deepseek-2026-08-17'])
+    const official = DEEPSEEK_2026_08_17_SCHEDULE
+    expect(official.effectiveFrom).toBe('2026-08-17T00:00:00+08:00')
+    expect(official.timezone).toBe('Asia/Shanghai')
+    expect(official.currency).toBe('CNY')
+    expect(official.windows).toEqual([
+      { id: 'peak-morning', bandId: 'peak', start: '09:00', end: '12:00' },
+      { id: 'peak-afternoon', bandId: 'peak', start: '14:00', end: '18:00' },
+    ])
+    // Peak rates are written ONCE under the shared `peak` band — no duplicates.
+    expect(official.models.map(model => model.model)).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro'])
+    expect(Object.keys(official.models[0]!.ratesByBand).sort()).toEqual(['off-peak', 'peak'])
+    expect(() => validatePricingScheduleSet({ schedules: DEFAULT_SCHEDULES })).not.toThrow()
+  })
+
+  it('official rates match the published numbers (per 1M tokens, CNY)', () => {
+    const flash = DEEPSEEK_2026_08_17_SCHEDULE.models[0]!
+    const pro = DEEPSEEK_2026_08_17_SCHEDULE.models[1]!
+    expect(flash.ratesByBand['off-peak']).toEqual({ cacheHitInputPricePerMillion: 0.05, cacheMissInputPricePerMillion: 1.5, outputPricePerMillion: 4.5 })
+    expect(flash.ratesByBand.peak).toEqual({ cacheHitInputPricePerMillion: 0.1, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 9 })
+    expect(pro.ratesByBand['off-peak']).toEqual({ cacheHitInputPricePerMillion: 0.15, cacheMissInputPricePerMillion: 4.5, outputPricePerMillion: 13.5 })
+    expect(pro.ratesByBand.peak).toEqual({ cacheHitInputPricePerMillion: 0.3, cacheMissInputPricePerMillion: 9, outputPricePerMillion: 27 })
+  })
+
+  it('A: 2026-08-16 23:59:59.999 +08 flash → legacy schedule', () => {
+    const resolved = priced('deepseek-v4-flash', '2026-08-16 23:59:59.999')
+    expect(resolved.scheduleId).toBe('legacy-2026-04-24')
+    expect(resolved.rates.cacheMissInputPricePerMillion).toBe(1)
+  })
+
+  it('B: 2026-08-17 00:00:00.000 +08 flash → new schedule, off-peak', () => {
+    const resolved = priced('deepseek-v4-flash', '2026-08-17 00:00:00.000')
+    expect(resolved.scheduleId).toBe('deepseek-2026-08-17')
+    expect(resolved.bandId).toBe('off-peak')
+    expect(resolved.rates.cacheMissInputPricePerMillion).toBe(1.5)
+  })
+
+  it('C: morning peak boundary — 08:59:59.999 off-peak, 09:00:00.000 peak', () => {
+    expect(priced('deepseek-v4-flash', '2026-08-17 08:59:59.999').bandId).toBe('off-peak')
+    const peak = priced('deepseek-v4-flash', '2026-08-17 09:00:00.000')
+    expect(peak.bandId).toBe('peak')
+    expect(peak.rates.outputPricePerMillion).toBe(9)
+  })
+
+  it('D: 11:59:59.999 peak, 12:00:00.000 off-peak', () => {
+    expect(priced('deepseek-v4-flash', '2026-08-17 11:59:59.999').bandId).toBe('peak')
+    expect(priced('deepseek-v4-flash', '2026-08-17 12:00:00.000').bandId).toBe('off-peak')
+  })
+
+  it('E: afternoon peak boundary — 13:59:59.999 off-peak, 14:00:00.000 peak', () => {
+    expect(priced('deepseek-v4-flash', '2026-08-17 13:59:59.999').bandId).toBe('off-peak')
+    expect(priced('deepseek-v4-flash', '2026-08-17 14:00:00.000').bandId).toBe('peak')
+  })
+
+  it('F: 17:59:59.999 peak, 18:00:00.000 off-peak', () => {
+    expect(priced('deepseek-v4-flash', '2026-08-17 17:59:59.999').bandId).toBe('peak')
+    expect(priced('deepseek-v4-flash', '2026-08-17 18:00:00.000').bandId).toBe('off-peak')
+  })
+
+  it('both peak windows share ONE band ("peak")', () => {
+    expect(bandForMinute(DEEPSEEK_2026_08_17_SCHEDULE, 9 * 60 + 30)).toEqual({ bandId: 'peak', window: DEEPSEEK_2026_08_17_SCHEDULE.windows[0] })
+    expect(bandForMinute(DEEPSEEK_2026_08_17_SCHEDULE, 15 * 60)).toEqual({ bandId: 'peak', window: DEEPSEEK_2026_08_17_SCHEDULE.windows[1] })
+    expect(bandForMinute(DEEPSEEK_2026_08_17_SCHEDULE, 8 * 60)).toEqual({ bandId: 'off-peak', window: null })
+  })
+
+  it('chat / reasoner: legacy prices before the boundary, UNPRICED after', () => {
+    const legacyChat = priced('deepseek-chat', '2026-08-16 23:00:00')
+    expect(legacyChat.scheduleId).toBe('legacy-2026-04-24')
+    expect(legacyChat.rates.cacheMissInputPricePerMillion).toBe(1)
+    expect(priced('deepseek-reasoner', '2026-08-16 23:00:00').scheduleId).toBe('legacy-2026-04-24')
+    // No official 2026-08-17 rate exists for these models → unpriced, never a guess.
+    expect(resolvePricing(OFFICIAL, 'deepseek-chat', at('2026-08-17 01:00:00'))).toEqual({ status: 'unpriced', model: 'deepseek-chat', reason: 'unknown-model' })
+    expect(resolvePricing(OFFICIAL, 'deepseek-reasoner', at('2026-08-17 01:00:00'))).toEqual({ status: 'unpriced', model: 'deepseek-reasoner', reason: 'unknown-model' })
+    expect(resolvePricing(OFFICIAL, 'mystery-future-model', at('2026-08-17 01:00:00'))).toEqual({ status: 'unpriced', model: 'mystery-future-model', reason: 'unknown-model' })
+  })
+
+  describe('hand-computed fixtures (1M tokens each, integer micro arithmetic)', () => {
+    const oneM = (model: string, wall: string, buckets: Partial<Pick<PricableRow, 'cacheHit' | 'cacheMiss' | 'output'>>) =>
+      row({ model, requestTime: at(wall), time: at(wall), ...buckets })
+
+    it('FLASH OFF-PEAK: hit ¥0.05 / miss ¥1.50 / output ¥4.50; all three ¥6.05', () => {
+      expect(aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-flash', '2026-08-17 03:00:00', { cacheHit: 1_000_000 })]).totalMicro).toBe('50000')
+      expect(aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-flash', '2026-08-17 03:00:00', { cacheMiss: 1_000_000 })]).totalMicro).toBe('1500000')
+      expect(aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-flash', '2026-08-17 03:00:00', { output: 1_000_000 })]).totalMicro).toBe('4500000')
+      const all = aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-flash', '2026-08-17 03:00:00', { cacheHit: 1_000_000, cacheMiss: 1_000_000, output: 1_000_000 })])
+      expect(all.totalMicro).toBe('6050000')
+      expect(all.total).toBe('6.050000')
+    })
+
+    it('FLASH PEAK: hit ¥0.10 / miss ¥3.00 / output ¥9.00; all three ¥12.10', () => {
+      const all = aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-flash', '2026-08-17 10:00:00', { cacheHit: 1_000_000, cacheMiss: 1_000_000, output: 1_000_000 })])
+      expect(all.totalMicro).toBe('12100000')
+      expect(all.total).toBe('12.100000')
+    })
+
+    it('PRO OFF-PEAK: hit ¥0.15 / miss ¥4.50 / output ¥13.50; all three ¥18.15', () => {
+      const all = aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-pro', '2026-08-17 03:00:00', { cacheHit: 1_000_000, cacheMiss: 1_000_000, output: 1_000_000 })])
+      expect(all.totalMicro).toBe('18150000')
+      expect(all.total).toBe('18.150000')
+    })
+
+    it('PRO PEAK: hit ¥0.30 / miss ¥9.00 / output ¥27.00; all three ¥36.30', () => {
+      const all = aggregateDayCost(DEFAULT_SCHEDULES, [oneM('deepseek-v4-pro', '2026-08-17 10:00:00', { cacheHit: 1_000_000, cacheMiss: 1_000_000, output: 1_000_000 })])
+      expect(all.totalMicro).toBe('36300000')
+      expect(all.total).toBe('36.300000')
+    })
+  })
+
+  it('mixed-time single day: five 1M-output flash rows → ¥31.50 (never one rate × total tokens)', () => {
+    const rows = [
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 08:30:00'), time: at('2026-08-17 08:30:00'), output: 1_000_000 }),
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 10:00:00'), time: at('2026-08-17 10:00:00'), output: 1_000_000 }),
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 13:00:00'), time: at('2026-08-17 13:00:00'), output: 1_000_000 }),
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 16:00:00'), time: at('2026-08-17 16:00:00'), output: 1_000_000 }),
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 20:00:00'), time: at('2026-08-17 20:00:00'), output: 1_000_000 }),
+    ]
+    const estimate = aggregateDayCost(DEFAULT_SCHEDULES, rows)
+    expect(estimate.totalMicro).toBe('31500000') // 4.5 + 9 + 4.5 + 9 + 4.5
+    expect(estimate.total).toBe('31.500000')
+    expect(estimate.pricedRequestCount).toBe(5)
+    expect(estimate.unpricedRequestCount).toBe(0)
+    expect(estimate.scheduleIdsUsed).toEqual(['deepseek-2026-08-17'])
+    // Sanity: 5M output × a single rate would NOT be ¥31.50 — per-row matters.
+    expect(aggregateDayCost(DEFAULT_SCHEDULES, [row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 10:00:00'), output: 5_000_000 })]).totalMicro).toBe('45000000')
+  })
+
+  it('flash + pro mixed in one peak window → ¥36.00', () => {
+    const rows = [
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 10:00:00'), output: 1_000_000 }),
+      row({ model: 'deepseek-v4-pro', requestTime: at('2026-08-17 10:00:00'), output: 1_000_000 }),
+    ]
+    const estimate = aggregateDayCost(DEFAULT_SCHEDULES, rows)
+    expect(estimate.totalMicro).toBe('36000000') // 9 + 27
+    expect(estimate.total).toBe('36.000000')
+    expect(estimate.pricedRequestCount).toBe(2)
+  })
+
+  it('cross-midnight: request started 8/16 is priced under LEGACY even when it settles on 8/17', () => {
+    const startedBefore = row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-16 23:59:59.500'), time: at('2026-08-17 00:00:03'), cacheMiss: 1_000_000 })
+    const estimate = aggregateDayCost(DEFAULT_SCHEDULES, [startedBefore])
+    expect(estimate.totalMicro).toBe('1000000') // legacy ¥1 — NOT the new ¥1.50
+    expect(estimate.scheduleIdsUsed).toEqual(['legacy-2026-04-24'])
+    const startedAfter = row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-17 00:00:00.000'), time: at('2026-08-17 00:00:03'), cacheMiss: 1_000_000 })
+    const after = aggregateDayCost(DEFAULT_SCHEDULES, [startedAfter])
+    expect(after.totalMicro).toBe('1500000') // new off-peak ¥1.50
+    expect(after.scheduleIdsUsed).toEqual(['deepseek-2026-08-17'])
+  })
+
+  it('legacy history keeps its price forever once the 8/17 schedule exists (delta = 0)', () => {
+    const rows = [
+      row({ model: 'deepseek-v4-flash', requestTime: at('2026-08-16 12:00:00'), cacheHit: 33_337_728, cacheMiss: 193_004, output: 206_901 }),
+      row({ model: 'deepseek-v4-pro', requestTime: at('2026-08-15 09:30:00'), cacheMiss: 10_000, output: 5_000 }),
+      row({ model: 'deepseek-chat', requestTime: at('2026-08-14 18:00:00'), cacheMiss: 2_000_000 }),
+    ]
+    const onlyLegacy = aggregateDayCost([LEGACY_SCHEDULE], rows)
+    const withOfficial = aggregateDayCost(DEFAULT_SCHEDULES, rows)
+    expect(withOfficial.totalMicro).toBe(onlyLegacy.totalMicro)
+    expect(withOfficial.total).toBe(onlyLegacy.total)
+    expect(withOfficial.scheduleIdsUsed).toEqual(['legacy-2026-04-24'])
   })
 })

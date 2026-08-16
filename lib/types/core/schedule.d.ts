@@ -23,16 +23,22 @@
  * instead of inventing a price, and the dashboard shows the estimate with a
  * "partly unpriced" marker rather than a false exact number.
  *
- * The 2026-08-17 DeepSeek price change is NOT part of this module: only the
- * legacy 2026-04-24 table ships here (as {@link LEGACY_SCHEDULE}), preserving
- * current behavior. New schedules are added later, without touching the
- * resolver.
+ * Several windows may SHARE one band: a window's optional `bandId` names the
+ * band its rates are keyed under (defaults to the window id). The official
+ * 2026-08-17 schedule uses this to express `peak-morning` + `peak-afternoon`
+ * as one `peak` band, so the peak rates are written exactly once.
+ *
+ * Ship here: the legacy 2026-04-24 table ({@link LEGACY_SCHEDULE}) and the
+ * official DeepSeek 2026-08-17 table ({@link DEEPSEEK_2026_08_17_SCHEDULE}),
+ * both as {@link DEFAULT_SCHEDULES}. The resolver itself is schedule-agnostic.
  */
 import type { PriceEntry, TokenRates } from './pricing.ts';
 /**
  * One daily time band. `start` inclusive, `end` exclusive, both in the
  * schedule's local wall clock ("HH:MM"; `end` may be "24:00"). A window
  * whose `start === end` covers the full day. `end < start` crosses midnight.
+ * The optional `bandId` names the band this window's rates are keyed under —
+ * several windows may share one band (default: the window's own id).
  */
 export interface PricingWindow {
     id: string;
@@ -40,6 +46,8 @@ export interface PricingWindow {
     start: string;
     /** Local wall-clock "HH:MM" or "24:00", exclusive. */
     end: string;
+    /** The band id this window maps to (defaults to `id`; shareable). */
+    bandId?: string;
 }
 /** One model's rates inside a schedule; `*` is an EXPLICIT user wildcard. */
 export interface ModelPricing {
@@ -76,7 +84,7 @@ export declare const ALL_DAY_WINDOW_ID = "all-day";
 export declare const DEFAULT_SCHEDULE_TIMEZONE = "Asia/Shanghai";
 /** Whether one minute-of-day falls inside one window (start inclusive, end exclusive). */
 export declare function isInsideWindow(minuteOfDay: number, window: PricingWindow): boolean;
-/** The band id covering one minute of day (a window id, or implicit off-peak). */
+/** The band id covering one minute of day (a window's band, or implicit off-peak). */
 export declare function bandForMinute(schedule: PricingSchedule, minuteOfDay: number): {
     bandId: string;
     window: PricingWindow | null;
@@ -141,6 +149,31 @@ export declare function buildSchedulesFromPriceEntries(entries: readonly PriceEn
  * built-in default must never silently price an unknown model.
  */
 export declare const LEGACY_SCHEDULE: PricingSchedule;
+/**
+ * The built-in official schedule for the DeepSeek 2026-08-17 price change.
+ *
+ * Source: DeepSeek official API pricing notice — effective 2026-08-17
+ * 00:00 Beijing Time (Asia/Shanghai), quoted in CNY per 1,000,000 tokens.
+ * Peak windows (local wall clock, start inclusive / end exclusive):
+ *   09:00–12:00 and 14:00–18:00; ALL other minutes are off-peak
+ *   (off-peak = exactly half of the peak price per token category).
+ *
+ * Only the two officially announced models are priced here; any other model
+ * (including deepseek-chat / deepseek-reasoner / unknown future models)
+ * resolves to UNPRICED under this schedule — an exact official price beats
+ * a guessed fallback, and the built-in default never ships a `*` wildcard.
+ *
+ * `peak-morning` and `peak-afternoon` share one `peak` band so the peak
+ * rates are written exactly once (the engine's shared-band feature).
+ */
+export declare const DEEPSEEK_2026_08_17_SCHEDULE: PricingSchedule;
+/**
+ * The built-in default schedule set: the legacy 2026-04-24 table (prices
+ * everything up to the 2026-08-17 boundary, so history never changes) plus
+ * the official 2026-08-17 table. Requests at or after
+ * `2026-08-17T00:00:00+08:00` are priced under the new time-aware schedule.
+ */
+export declare const DEFAULT_SCHEDULES: PricingSchedule[];
 /** Structural equality of two schedule sets (pricing-config change detection). */
 export declare function pricingSetsEqual(a: PricingScheduleSet, b: PricingScheduleSet): boolean;
 /** One row priced by the aggregate: request time falls back to settlement time. */

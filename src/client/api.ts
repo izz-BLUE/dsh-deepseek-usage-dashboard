@@ -51,7 +51,16 @@ export interface PriceScheduleWire {
 }
 
 /** How the pricing config is expressed. */
-export type PricingModeWire = 'legacy' | 'schedules'
+export type PricingModeWire = 'legacy' | 'time-aware'
+
+/** The band the current instant falls into (lightweight UI hint only). */
+export interface CurrentBandWire {
+  scheduleId: string
+  bandId: string
+  /** The window that matched, or null for the implicit off-peak band. */
+  windowId: string | null
+  timezone: string
+}
 
 /** One day's cost estimate with explicit priced/unpriced accounting. */
 export interface DayCostEstimateWire {
@@ -86,6 +95,7 @@ export interface UsageStatsWire {
     mode: PricingModeWire
     timezone: string
     schedules: PriceScheduleWire[]
+    currentBand: CurrentBandWire | null
   }
   balance: BalanceSnapshotWire | null
   balanceOmitted: boolean

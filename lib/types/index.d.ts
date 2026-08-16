@@ -59,7 +59,7 @@ export { fetchBalance, sanitizeBalanceBody, BALANCE_URL, BALANCE_TIMEOUT_MS } fr
 export { mapWireUsage, bucketsFromTokenUsage } from './core/mapping.ts';
 export { dayKeyOf, dayRangeMs, DAY_TIMEZONE, minuteOfDayInTimezone, dayRangeMsInTimezone } from './core/day.ts';
 export { resolveDeepseekEndpoint, DEEPSEEK_API_HOST, DEFAULT_DEEPSEEK_PROVIDER } from './host/endpoint.ts';
-export { LEGACY_SCHEDULE, aggregateDayCost, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
+export { DEFAULT_SCHEDULES, DEEPSEEK_2026_08_17_SCHEDULE, LEGACY_SCHEDULE, aggregateDayCost, bandForMinute, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
 export type { PriceEntry, TokenRates } from './core/pricing.ts';
 export type { PricingSchedule, PricingScheduleSet, PricingWindow, ModelPricing, ResolvedPricing, DayCostEstimate, } from './core/schedule.ts';
 //# sourceMappingURL=index.d.ts.map

@@ -23,10 +23,14 @@
  * instead of inventing a price, and the dashboard shows the estimate with a
  * "partly unpriced" marker rather than a false exact number.
  *
- * The 2026-08-17 DeepSeek price change is NOT part of this module: only the
- * legacy 2026-04-24 table ships here (as {@link LEGACY_SCHEDULE}), preserving
- * current behavior. New schedules are added later, without touching the
- * resolver.
+ * Several windows may SHARE one band: a window's optional `bandId` names the
+ * band its rates are keyed under (defaults to the window id). The official
+ * 2026-08-17 schedule uses this to express `peak-morning` + `peak-afternoon`
+ * as one `peak` band, so the peak rates are written exactly once.
+ *
+ * Ship here: the legacy 2026-04-24 table ({@link LEGACY_SCHEDULE}) and the
+ * official DeepSeek 2026-08-17 table ({@link DEEPSEEK_2026_08_17_SCHEDULE}),
+ * both as {@link DEFAULT_SCHEDULES}. The resolver itself is schedule-agnostic.
  */
 
 import type { UsageBuckets } from './mapping.ts'
@@ -39,6 +43,8 @@ import type { PriceEntry, TokenRates } from './pricing.ts'
  * One daily time band. `start` inclusive, `end` exclusive, both in the
  * schedule's local wall clock ("HH:MM"; `end` may be "24:00"). A window
  * whose `start === end` covers the full day. `end < start` crosses midnight.
+ * The optional `bandId` names the band this window's rates are keyed under —
+ * several windows may share one band (default: the window's own id).
  */
 export interface PricingWindow {
   id: string
@@ -46,6 +52,8 @@ export interface PricingWindow {
   start: string
   /** Local wall-clock "HH:MM" or "24:00", exclusive. */
   end: string
+  /** The band id this window maps to (defaults to `id`; shareable). */
+  bandId?: string
 }
 
 /** One model's rates inside a schedule; `*` is an EXPLICIT user wildcard. */
@@ -108,10 +116,10 @@ export function isInsideWindow(minuteOfDay: number, window: PricingWindow): bool
   return minuteOfDay >= start || minuteOfDay < end // cross-midnight
 }
 
-/** The band id covering one minute of day (a window id, or implicit off-peak). */
+/** The band id covering one minute of day (a window's band, or implicit off-peak). */
 export function bandForMinute(schedule: PricingSchedule, minuteOfDay: number): { bandId: string; window: PricingWindow | null } {
   for (const window of schedule.windows) {
-    if (isInsideWindow(minuteOfDay, window)) return { bandId: window.id, window }
+    if (isInsideWindow(minuteOfDay, window)) return { bandId: window.bandId ?? window.id, window }
   }
   return { bandId: OFF_PEAK_BAND_ID, window: null }
 }
@@ -278,11 +286,15 @@ export function validatePricingScheduleSet(set: PricingScheduleSet): void {
       throw new Error(`deepseek-usage: schedule ${schedule.id} needs at least one window (use start "00:00" end "00:00" for all-day)`)
     }
     const windowIds = new Set<string>()
+    const bandIds = new Set<string>()
     const intervals: Array<[number, number]> = []
     for (const window of schedule.windows) {
       if (window.id.trim() === '') throw new Error(`deepseek-usage: schedule ${schedule.id} has a window with an empty id`)
       if (windowIds.has(window.id)) throw new Error(`deepseek-usage: schedule ${schedule.id} has duplicate window id "${window.id}"`)
       windowIds.add(window.id)
+      const bandId = window.bandId ?? window.id
+      if (bandId.trim() === '') throw new Error(`deepseek-usage: schedule ${schedule.id} window ${window.id} has an empty bandId`)
+      bandIds.add(bandId)
       const parts = windowIntervals(window) // throws on malformed times
       for (const interval of parts) intervals.push(interval)
     }
@@ -298,7 +310,9 @@ export function validatePricingScheduleSet(set: PricingScheduleSet): void {
     for (const model of schedule.models) {
       if (model.model.trim() === '') throw new Error(`deepseek-usage: schedule ${schedule.id} has a model with an empty id`)
       for (const [bandId, rates] of Object.entries(model.ratesByBand)) {
-        if (bandId !== OFF_PEAK_BAND_ID && !windowIds.has(bandId)) {
+        // A band is legal when it is the implicit off-peak or the band of at
+        // least one window (window.bandId ?? window.id).
+        if (bandId !== OFF_PEAK_BAND_ID && !bandIds.has(bandId)) {
           throw new Error(`deepseek-usage: schedule ${schedule.id} model ${model.model} references unknown band "${bandId}"`)
         }
         assertValidRates(rates, `schedule ${schedule.id} model ${model.model} band ${bandId}`)
@@ -380,6 +394,58 @@ export const LEGACY_SCHEDULE: PricingSchedule = {
   ],
 }
 
+/**
+ * The built-in official schedule for the DeepSeek 2026-08-17 price change.
+ *
+ * Source: DeepSeek official API pricing notice — effective 2026-08-17
+ * 00:00 Beijing Time (Asia/Shanghai), quoted in CNY per 1,000,000 tokens.
+ * Peak windows (local wall clock, start inclusive / end exclusive):
+ *   09:00–12:00 and 14:00–18:00; ALL other minutes are off-peak
+ *   (off-peak = exactly half of the peak price per token category).
+ *
+ * Only the two officially announced models are priced here; any other model
+ * (including deepseek-chat / deepseek-reasoner / unknown future models)
+ * resolves to UNPRICED under this schedule — an exact official price beats
+ * a guessed fallback, and the built-in default never ships a `*` wildcard.
+ *
+ * `peak-morning` and `peak-afternoon` share one `peak` band so the peak
+ * rates are written exactly once (the engine's shared-band feature).
+ */
+export const DEEPSEEK_2026_08_17_SCHEDULE: PricingSchedule = {
+  id: 'deepseek-2026-08-17',
+  effectiveFrom: '2026-08-17T00:00:00+08:00',
+  timezone: DEFAULT_SCHEDULE_TIMEZONE,
+  currency: 'CNY',
+  windows: [
+    { id: 'peak-morning', bandId: 'peak', start: '09:00', end: '12:00' },
+    { id: 'peak-afternoon', bandId: 'peak', start: '14:00', end: '18:00' },
+  ],
+  models: [
+    {
+      model: 'deepseek-v4-flash',
+      ratesByBand: {
+        peak: { cacheHitInputPricePerMillion: 0.1, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 9 },
+        'off-peak': { cacheHitInputPricePerMillion: 0.05, cacheMissInputPricePerMillion: 1.5, outputPricePerMillion: 4.5 },
+      },
+    },
+    {
+      model: 'deepseek-v4-pro',
+      ratesByBand: {
+        peak: { cacheHitInputPricePerMillion: 0.3, cacheMissInputPricePerMillion: 9, outputPricePerMillion: 27 },
+        'off-peak': { cacheHitInputPricePerMillion: 0.15, cacheMissInputPricePerMillion: 4.5, outputPricePerMillion: 13.5 },
+      },
+    },
+  ],
+}
+
+/**
+ * The built-in default schedule set: the legacy 2026-04-24 table (prices
+ * everything up to the 2026-08-17 boundary, so history never changes) plus
+ * the official 2026-08-17 table. Requests at or after
+ * `2026-08-17T00:00:00+08:00` are priced under the new time-aware schedule.
+ */
+export const DEFAULT_SCHEDULES: PricingSchedule[] = [LEGACY_SCHEDULE, DEEPSEEK_2026_08_17_SCHEDULE]
+
 /** Structural equality of two schedule sets (pricing-config change detection). */
 export function pricingSetsEqual(a: PricingScheduleSet, b: PricingScheduleSet): boolean {
   if (a.schedules.length !== b.schedules.length) return false
@@ -395,7 +461,7 @@ export function pricingSetsEqual(a: PricingScheduleSet, b: PricingScheduleSet): 
     }
     if (!schedule.windows.every((window, windowIndex) => {
       const sibling = other.windows[windowIndex]!
-      return window.id === sibling.id && window.start === sibling.start && window.end === sibling.end
+      return window.id === sibling.id && window.start === sibling.start && window.end === sibling.end && (window.bandId ?? '') === (sibling.bandId ?? '')
     })) {
       return false
     }

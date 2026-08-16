@@ -33,6 +33,7 @@ export interface PricingScheduleConfigWire {
         id: string;
         start: string;
         end: string;
+        bandId?: string;
     }>;
     models: Array<{
         model: string;
@@ -75,14 +76,20 @@ export interface UsageSettingsFormState extends CardShell {
     /** Draft text for the refresh interval. */
     balanceRefreshMinutes: string;
     /** How pricing is expressed in the effective config. */
-    pricingMode: 'legacy' | 'schedules';
+    pricingMode: 'legacy' | 'time-aware';
     /** The schedules' timezone (also the legacy normalization zone). */
     pricingTimezone: string;
-    /** The configured schedule identities (read-only display). */
+    /** The configured schedule identities + windows (read-only display). */
     pricingSchedules: Array<{
         id: string;
         effectiveFrom: string;
         currency: string;
+        windows: Array<{
+            id: string;
+            start: string;
+            end: string;
+            bandId?: string;
+        }>;
     }>;
     /** Draft price rows. */
     prices: PriceEntryWire[];

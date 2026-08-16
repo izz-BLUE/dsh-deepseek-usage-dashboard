@@ -61,6 +61,7 @@ const SAMPLE: UsageStatsWire = {
     mode: 'legacy',
     timezone: 'Asia/Shanghai',
     schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
+    currentBand: null,
   },
   balance: {
     isAvailable: true,
@@ -162,19 +163,37 @@ describe('dashboard rendering', () => {
       ...SAMPLE,
       prices: {
         ...SAMPLE.prices,
-        mode: 'schedules' as const,
+        mode: 'time-aware' as const,
         entries: [],
         schedules: [{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }],
+        currentBand: { scheduleId: 'sched-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' },
       },
       estimatedCost: { ...SAMPLE.estimatedCost, unpricedRequestCount: 0, scheduleIdsUsed: ['sched-2026-08-17'] },
     }
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: schedulesMode }} onRefresh={() => undefined} />)
     expect(screen.getByText(/2026-08-17 · 分时段计价/)).toBeDefined()
+    expect(screen.getByText(/当前：空闲时段/)).toBeDefined()
     expect(screen.queryByText(/部分用量未计价/)).toBeNull()
 
     const multi = { ...schedulesMode, estimatedCost: { ...schedulesMode.estimatedCost, scheduleIdsUsed: ['a', 'b'] } }
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: multi }} onRefresh={() => undefined} />)
     expect(screen.getByText('多种价格计划')).toBeDefined()
+  })
+
+  it('shows the current peak band hint (off-peak → 空闲时段, peak → 高峰时段)', () => {
+    document.documentElement.lang = 'zh'
+    const peak = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'time-aware' as const,
+        entries: [],
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'peak', windowId: 'peak-morning', timezone: 'Asia/Shanghai' },
+      },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: peak }} onRefresh={() => undefined} />)
+    expect(screen.getByText(/当前：高峰时段/)).toBeDefined()
+    expect(screen.queryByText(/当前：空闲时段/)).toBeNull()
   })
 
   it('renders an empty state without data', () => {
@@ -350,9 +369,9 @@ describe('settings form (staged)', () => {
     })
     const form = new UsageSettingsForm(scope)
     const state = form.bind().getSnapshot()
-    expect(state.pricingMode).toBe('schedules')
+    expect(state.pricingMode).toBe('time-aware')
     expect(state.pricingTimezone).toBe('Asia/Shanghai')
-    expect(state.pricingSchedules).toEqual([{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY' }])
+    expect(state.pricingSchedules).toEqual([{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windows: [{ id: 'peak', start: '08:00', end: '18:00', bandId: undefined }] }])
     expect(state.invalid).toBe(false)
   })
 })

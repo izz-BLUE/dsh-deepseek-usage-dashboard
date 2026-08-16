@@ -75,6 +75,7 @@ function makeDeps(balance: FakeBalanceWatch = new FakeBalanceWatch()): UsageRout
       mode: 'legacy',
       timezone: 'Asia/Shanghai',
       schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
+      currentBand: { scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', timezone: 'Asia/Shanghai' },
     }),
     estimateDayCost: () => ({
       total: '1.234567',
@@ -301,6 +302,31 @@ describe('pricing provenance and unpriced state', () => {
     expect(prices.schedules).toEqual([{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }])
     // Legacy display rows stay available (API compatibility).
     expect(prices.entries).toEqual(PRICES)
+    // The current-instant band hint rides along (never a billing claim).
+    expect(prices.currentBand).toEqual({ scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', timezone: 'Asia/Shanghai' })
+  })
+
+  it('serializes a time-aware schedule set (mode / schedules / current band)', async () => {
+    const deps = makeDeps()
+    deps.prices = () => ({
+      version: 3,
+      updatedAt: '2026-08-17T00:00:00.000Z',
+      entries: [],
+      mode: 'time-aware',
+      timezone: 'Asia/Shanghai',
+      schedules: [{ id: 'deepseek-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }],
+      currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' },
+    })
+    const server = await serve(makeUsageRoutes(deps))
+    servers.push(server)
+    const response = await fetch(`${server.base}/api/deepseek-usage/stats`, { headers: { Origin: server.base } })
+    expect(response.status).toBe(200)
+    const payload = await response.json() as Record<string, unknown>
+    const prices = payload.prices as Record<string, unknown>
+    expect(prices.mode).toBe('time-aware')
+    expect(prices.schedules).toEqual([{ id: 'deepseek-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }])
+    expect(prices.currentBand).toEqual({ scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' })
+    expect(prices.entries).toEqual([])
   })
 
   it('serializes the unpriced state explicitly (never folded into total)', async () => {

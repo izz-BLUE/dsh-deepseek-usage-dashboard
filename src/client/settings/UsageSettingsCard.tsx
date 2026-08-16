@@ -184,19 +184,29 @@ export function UsageSettingsCard(props: UsageSettingsCardProps) {
       <div className={css.field}>
         <span className={css.label}>{t('settings.pricingMode')}</span>
         <p className={css.hint}>
-          {state.pricingMode === 'schedules' ? t('settings.pricingModeSchedules') : t('settings.pricingModeLegacy')}
+          {state.pricingMode === 'time-aware' ? t('settings.pricingModeSchedules') : t('settings.pricingModeLegacy')}
         </p>
-        {state.pricingMode === 'schedules'
+        {state.pricingMode === 'time-aware'
           ? (
             <>
               <p className={css.hint}>{t('settings.pricingTimezone')}: {state.pricingTimezone}</p>
               <ul className={css.scheduleList}>
                 {state.pricingSchedules.map(schedule => (
                   <li key={schedule.id}>
-                    {schedule.id} · {schedule.effectiveFrom} · {schedule.currency}
+                    <span className={css.scheduleLine}>
+                      {schedule.id} · {schedule.effectiveFrom} · {schedule.currency}
+                    </span>
+                    {schedule.windows.length > 0
+                      ? (
+                        <span className={css.scheduleWindows}>
+                          {schedule.windows.map(window => `${window.id} ${window.start}–${window.end}`).join(' · ')}
+                        </span>
+                      )
+                      : null}
                   </li>
                 ))}
               </ul>
+              <p className={css.hint} role="status">{t('settings.pricingOffPeakHint')}</p>
               <p className={css.hint} role="status">{t('settings.pricingSchedulesHint')}</p>
             </>
           )

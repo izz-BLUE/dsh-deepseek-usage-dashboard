@@ -16,16 +16,20 @@ import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type {} from '@deepseek-ai/dsh-session-projection/types'
 import { DEFAULT_PRICE_ENTRIES, assertValidPriceEntry, type PriceEntry } from './core/pricing.ts'
 import {
+  DEFAULT_SCHEDULES,
+  DEEPSEEK_2026_08_17_SCHEDULE,
   LEGACY_SCHEDULE,
   aggregateDayCost,
+  bandForMinute,
   buildSchedulesFromPriceEntries,
+  prepareScheduleSet,
   pricingSetsEqual,
   validatePricingScheduleSet,
   type DayCostEstimate,
   type PricingSchedule,
   type PricingScheduleSet,
 } from './core/schedule.ts'
-import { recentDayKeys, dayRangeMs, dayKeyOf } from './core/day.ts'
+import { recentDayKeys, dayRangeMs, dayKeyOf, minuteOfDayInTimezone } from './core/day.ts'
 import { UsageStore } from './core/sqlite-store.ts'
 import { DEFAULT_DEEPSEEK_PROVIDER, deepseekApiKeyRef, resolveDeepseekEndpoint } from './host/endpoint.ts'
 import { registerUsageCapture, scanAllSessions } from './host/collector.ts'
@@ -70,6 +74,8 @@ const PricingWindowSchema = z.object({
   id: z.string().required(),
   start: z.string().required(),
   end: z.string().required(),
+  // Optional: several windows may share one band (default: the window id).
+  bandId: z.string(),
 })
 
 const ModelPricingSchema = z.object({
@@ -102,7 +108,11 @@ export const Config: z<Config> = z.object({
   providerId: z.string().default(DEFAULT_DEEPSEEK_PROVIDER),
   balanceRefreshMinutes: z.number().step(1).min(1).default(10),
   pricingSchedules: z.array(PricingScheduleSchema),
-  prices: z.array(PriceEntrySchema).default(DEFAULT_PRICE_ENTRIES),
+  // NO default here on purpose: when the user never configured `prices`,
+  // the resolution falls through to the built-in DEFAULT_SCHEDULES (legacy
+  // + official 2026-08-17). A default array would shadow the built-in
+  // time-aware schedule and keep everyone on the old flat table forever.
+  prices: z.array(PriceEntrySchema),
 })
 
 /** How the pricing config is expressed (drives API/UI provenance). */
@@ -116,19 +126,22 @@ export interface ResolvedPricingSet {
 
 /** Resolve the pricing configuration from a config, validated. */
 function resolvePricingSet(config: Config): ResolvedPricingSet {
-  // New engine first: explicitly configured schedules win over the legacy table.
+  // New engine first: explicitly configured schedules win over everything.
   if (config.pricingSchedules !== undefined && config.pricingSchedules.length > 0) {
     validatePricingScheduleSet({ schedules: config.pricingSchedules })
-    return { schedules: config.pricingSchedules, mode: 'schedules' }
+    return { schedules: config.pricingSchedules, mode: 'time-aware' }
   }
   // Legacy `prices`: user-configured rows keep working (including explicit
-  // `*` wildcard rows), normalized into one all-day schedule per date.
+  // `*` wildcard rows), normalized into one all-day schedule per date. An
+  // explicitly configured legacy table keeps applying to ALL dates — the
+  // built-in 2026-08-17 change only ships with the default configuration.
   if (config.prices !== undefined && config.prices.length > 0) {
     config.prices.forEach(assertValidPriceEntry)
     return { schedules: buildSchedulesFromPriceEntries(config.prices), mode: 'legacy' }
   }
-  // No configuration at all: the built-in legacy schedule (current behavior).
-  return { schedules: [LEGACY_SCHEDULE], mode: 'legacy' }
+  // No configuration at all: built-in legacy + official 2026-08-17 schedules
+  // (requests before the boundary keep the legacy price forever).
+  return { schedules: DEFAULT_SCHEDULES, mode: 'time-aware' }
 }
 
 /**
@@ -160,6 +173,26 @@ export function apply(ctx: Context, config: Config = {}): void {
         currency: schedule.currency,
         windowCount: schedule.windows.length,
       })),
+      // The band the CURRENT instant falls into (lightweight UI hint — an
+      // estimate aid, never a billing claim). Computed against the latest
+      // effective schedule in the schedule's own timezone.
+      currentBand: (() => {
+        const now = Date.now()
+        const prepared = prepareScheduleSet(set.schedules)
+        let active: (typeof prepared)[number] | undefined
+        for (const candidate of prepared) {
+          if (candidate.effectiveMs <= now) active = candidate
+          else break
+        }
+        if (active === undefined) return null
+        const band = bandForMinute(active.schedule, minuteOfDayInTimezone(now, active.schedule.timezone))
+        return {
+          scheduleId: active.schedule.id,
+          bandId: band.bandId,
+          windowId: band.window?.id ?? null,
+          timezone: active.schedule.timezone,
+        }
+      })(),
       // Legacy display rows (kept for API compatibility; the time-aware
       // engine prices rows from the schedules, not from these entries).
       entries: set.mode === 'legacy'
@@ -284,8 +317,11 @@ export { mapWireUsage, bucketsFromTokenUsage } from './core/mapping.ts'
 export { dayKeyOf, dayRangeMs, DAY_TIMEZONE, minuteOfDayInTimezone, dayRangeMsInTimezone } from './core/day.ts'
 export { resolveDeepseekEndpoint, DEEPSEEK_API_HOST, DEFAULT_DEEPSEEK_PROVIDER } from './host/endpoint.ts'
 export {
+  DEFAULT_SCHEDULES,
+  DEEPSEEK_2026_08_17_SCHEDULE,
   LEGACY_SCHEDULE,
   aggregateDayCost,
+  bandForMinute,
   buildSchedulesFromPriceEntries,
   validatePricingScheduleSet,
   prepareScheduleSet,

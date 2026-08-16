@@ -59,16 +59,23 @@ pnpm build
 | `enabled` | `true` | 总开关 |
 | `providerId` | `deepseek-official` | 被统计为 DeepSeek 的 provider 路由 |
 | `balanceRefreshMinutes` | `10` | 余额刷新间隔（分钟） |
-| `pricingSchedules` | — | 分时段价格计划（time-aware pricing，优先于 `prices`） |
-| `prices` | 见 `DEFAULT_PRICE_ENTRIES` | 旧版分模型价格表（legacy，仅在未配置 `pricingSchedules` 时生效） |
+| `pricingSchedules` | 内置两套（见下） | 分时段价格计划（time-aware pricing，优先于 `prices`；未配置时使用内置 legacy + 2026-08-17 官方价） |
+| `prices` | — | 旧版分模型价格表（legacy，仅在未配置 `pricingSchedules` 时生效；一旦显式配置，所有日期均按该表计价） |
 
 ### 计价（Pricing）
 
 - **时间感知**：每个请求按其**请求开始时间**（`step/start`）所属的 schedule 计价；`schedule.effectiveFrom <= requestTime` 生效（含边界）。价格变更只影响生效时刻之后的请求，**历史请求不会被新价格重算**。
-- **分时段**：schedule 可按本地时间窗口（如 `08:00 → 18:00`，start 含 / end 不含；`end < start` 跨午夜；`start === end` 为全天）划分 band；未落入任何窗口的时间自动归入隐式 `off-peak` band。
-- **未知模型 = 未计价（UNPRICED）**：内置默认表**不再提供 `*` 兜底**——未知模型明确显示为「部分用量未计价」，其 token 不进入估算金额；只有你在配置中**显式**配置 `*` 行时才启用兜底。
+- **分时段**：schedule 可按本地时间窗口（如 `09:00 → 12:00`，start 含 / end 不含；`end < start` 跨午夜；`start === end` 为全天）划分 band；未落入任何窗口的时间自动归入隐式 `off-peak` band。多个窗口可共享一个 band（`bandId`，如上午/下午高峰共用 `peak`，价格只写一次）。
+- **未知模型 = 未计价（UNPRICED）**：内置默认表**不提供 `*` 兜底**——未知模型明确显示为「部分用量未计价」，其 token 不进入估算金额；只有你在配置中**显式**配置 `*` 行时才启用兜底。
 - **金额**：仍以整数微单位（1e-6 币种单位）BigInt 累计；SQLite 只存 token/模型/时间戳，金额一律读取时推导，配置纠错后历史重算即可。
 - **币种**：同一 `pricingSchedules` 集合必须统一币种，混合币种会在配置校验时被拒绝（避免把不同币种静默加成一个 ¥ 数字）。
+
+**内置默认 schedule（未配置 `pricingSchedules` / `prices` 时生效）**：
+
+- `legacy-2026-04-24`：2026-04-24 起全天统一价（flash 0.02/1/2、pro 0.025/3/6、chat/reasoner 同 flash），覆盖 2026-08-17 之前的所有历史请求。
+- `deepseek-2026-08-17`：**2026-08-17 00:00（北京时间，Asia/Shanghai）起生效**的官方新分时定价，来源为 DeepSeek 官方 API 定价公告。高峰窗口 `09:00–12:00` 与 `14:00–18:00`（本地时间，start 含 / end 不含）共用 `peak` band，其余时间均为空闲时段（off-peak，价格为高峰的一半）。仅官方公告中列出的 `deepseek-v4-flash` 与 `deepseek-v4-pro` 有价；`deepseek-chat` / `deepseek-reasoner` / 未知模型在 2026-08-17 之后按**未计价**处理（精确的官方模型价格优先于猜测兜底）。Flash：peak 0.10/3.00/9.00、off-peak 0.05/1.50/4.50；Pro：peak 0.30/9.00/27.00、off-peak 0.15/4.50/13.50（CNY/百万 token）。
+
+估算依据为**捕获到的请求开始时间**（`requestTime`，`step/start` 事件时刻；历史行以落库时间近似）。费用估算与 DeepSeek 官方账单**并不保证逐请求一致**——官方对「峰谷归属采用哪个时间戳」未作说明，本插件选择请求开始时间，界面所有金额均标注为「估算费用，非官方账单」。
 
 `pricingSchedules` 示例（价格均为示意）：
 

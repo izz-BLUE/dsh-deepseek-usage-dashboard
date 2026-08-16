@@ -90,6 +90,17 @@
   padding: 2px 0;
 }
 
+.scheduleLine {
+  display: block;
+}
+
+.scheduleWindows {
+  display: block;
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
 .label {
   color: var(--dsw-alias-label-primary, inherit);
   font-size: 12px;

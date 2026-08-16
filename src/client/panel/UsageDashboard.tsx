@@ -348,6 +348,15 @@ export function DashboardView(props: { snapshot: UsageStoreSnapshot; onRefresh: 
                     {formatAmount(data.estimatedCost.total, data.estimatedCost.currency)}
                   </span>
                   <span className={css.estimateProvenance}>{pricingProvenance(data, t)}</span>
+                  {data.prices.currentBand !== null
+                    ? (
+                      <span className={css.estimateBand} role="status">
+                        {data.prices.currentBand.bandId === 'off-peak'
+                          ? t('panel.currentBandOffPeak')
+                          : t('panel.currentBandPeak')}
+                      </span>
+                    )
+                    : null}
                   <span className={css.estimateNote}>{t('panel.estimateNote')}</span>
                   {data.estimatedCost.unpricedRequestCount > 0
                     ? (

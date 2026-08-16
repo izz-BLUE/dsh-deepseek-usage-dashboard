@@ -24,13 +24,21 @@ export declare const MAX_BODY_BYTES: number;
 /** Route prefix owned by this plugin. */
 export declare const USAGE_API_PREFIX = "/api/deepseek-usage";
 /** How the pricing config is expressed — drives the API/UI provenance. */
-export type PricingMode = 'legacy' | 'schedules';
+export type PricingMode = 'legacy' | 'time-aware';
 /** One schedule's identity served to the browser (never the raw rates). */
 export interface PriceScheduleMeta {
     id: string;
     effectiveFrom: string;
     currency: string;
     windowCount: number;
+}
+/** The band the current instant falls into (lightweight UI hint only). */
+export interface CurrentBandMeta {
+    scheduleId: string;
+    bandId: string;
+    /** The window that matched, or null for the implicit off-peak band. */
+    windowId: string | null;
+    timezone: string;
 }
 /** The price metadata shown next to every estimate. */
 export interface PriceTableMeta {
@@ -44,6 +52,8 @@ export interface PriceTableMeta {
     timezone: string;
     /** The effective schedule identities (one day may span several). */
     schedules: PriceScheduleMeta[];
+    /** The band of the current instant, or null before the first schedule. */
+    currentBand: CurrentBandMeta | null;
 }
 /** The sanitized stats payload served to the browser. */
 export interface UsageStatsPayload {

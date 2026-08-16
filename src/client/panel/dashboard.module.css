@@ -342,6 +342,12 @@
   font-weight: 500;
 }
 
+.estimateBand {
+  color: var(--dsw-alias-label-tertiary, inherit);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .estimateUnpriced {
   color: var(--dsw-alias-label-warning, inherit);
   font-size: 11px;

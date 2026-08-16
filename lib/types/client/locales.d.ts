@@ -28,6 +28,8 @@ export declare const zh: {
     'panel.pricingModeSchedules': string;
     'panel.pricingMultiple': string;
     'panel.pricingTimezone': string;
+    'panel.currentBandOffPeak': string;
+    'panel.currentBandPeak': string;
     'panel.unpriced': string;
     'panel.unpricedDetail': string;
     'panel.estimateNote': string;
@@ -66,6 +68,7 @@ export declare const zh: {
     'settings.pricingModeSchedules': string;
     'settings.pricingTimezone': string;
     'settings.pricingSchedules': string;
+    'settings.pricingOffPeakHint': string;
     'settings.pricingSchedulesHint': string;
     'settings.prices': string;
     'settings.pricesHint': string;
@@ -120,6 +123,8 @@ export declare const en: {
     'panel.pricingModeSchedules': string;
     'panel.pricingMultiple': string;
     'panel.pricingTimezone': string;
+    'panel.currentBandOffPeak': string;
+    'panel.currentBandPeak': string;
     'panel.unpriced': string;
     'panel.unpricedDetail': string;
     'panel.estimateNote': string;
@@ -158,6 +163,7 @@ export declare const en: {
     'settings.pricingModeSchedules': string;
     'settings.pricingTimezone': string;
     'settings.pricingSchedules': string;
+    'settings.pricingOffPeakHint': string;
     'settings.pricingSchedulesHint': string;
     'settings.prices': string;
     'settings.pricesHint': string;
