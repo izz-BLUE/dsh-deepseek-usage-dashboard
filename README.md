@@ -101,17 +101,17 @@ deepseek-usage:
 
 ## 数据来源与字段映射
 
-统计来自**会话事件日志**：官方可重放投影注册表（`ctx.sessionProjections`，与 `@linxin666/dsh-live-stats` 同一扩展点）+ 启动时经 `ctx.sessionQuery` 的补扫。官方 DeepSeek 适配器（`@deepseek-ai/dsh-llm-deepseek`）的 wire→TokenUsage 映射（`translate.mapUsage`）：
+统计来自**会话事件日志**：官方可重放投影注册表（`ctx.sessionProjections`，与 `@linxin666/dsh-live-stats` 同一扩展点）+ 启动时经 `ctx.sessionQuery` 的补扫。运行期采集只接触官方 DeepSeek 适配器（`@deepseek-ai/dsh-llm-deepseek` 的 `translate.mapUsage`）转换后的 harness `TokenUsage`：
 
-| DeepSeek wire 字段 | harness `TokenUsage` | 仪表盘桶 |
+| DeepSeek wire 字段 | harness `TokenUsage`（适配器转换） | 仪表盘桶 |
 | --- | --- | --- |
-| `prompt_cache_hit_tokens`（或 `prompt_tokens_details.cached_tokens`） | `cacheReadTokens` | `cacheHitInputTokens` |
-| `prompt_tokens - cacheRead`（不相交；即 `prompt_cache_miss_tokens`） | `inputTokens` | `cacheMissInputTokens` |
+| `prompt_cache_hit_tokens` 或 `prompt_tokens_details.cached_tokens`（适配器优先取后者） | `cacheReadTokens` | `cacheHitInputTokens` |
+| `prompt_tokens - cacheRead`（不相交；适配器丢弃原生 `prompt_cache_miss_tokens`） | `inputTokens` | `cacheMissInputTokens` |
 | `completion_tokens` | `outputTokens` | `outputTokens` |
 | `completion_tokens_details.reasoning_tokens` | `reasoningTokens` | `reasoningTokens` |
 | （DeepSeek 不上报） | `cacheWriteTokens`（缺省） | 计 0 |
 
-等价性由 `tests/mapping.spec.ts` 钉死。
+插件自身导出的 wire 参考映射 `mapWireUsage`（`src/core/mapping.ts`）则**优先 DeepSeek 原生计费字段**：`cacheHit = prompt_cache_hit_tokens ?? prompt_tokens_details?.cached_tokens`、`cacheMiss = prompt_cache_miss_tokens ?? max(0, prompt_tokens - cacheHit)`。`cached_tokens` 只是拼写兜底、绝不无条件覆盖原生 hit（两者语义未被证明一致），兜底 miss 也不会为负。运行期捕获路径只看到适配器转换后的 `TokenUsage`，桶仍与 harness 报告完全一致（hit=`cacheReadTokens`、miss=`inputTokens`）；参考映射仅供自行映射 wire 载荷的集成使用。相关测试：`tests/mapping.spec.ts`。
 
 ## 安全
 
@@ -126,6 +126,7 @@ deepseek-usage:
 - 步骤按开始时生效的 request/header 归属模型；turn 中途改 header 影响后续步骤。
 - 余额端点固定为 `https://api.deepseek.com`，不可配置（按需求）。
 - 费用为基于配置价格表的估算，官方账单才是权威。
+- 运行期 token 桶来自官方适配器 `mapUsage`：它优先采用 `prompt_tokens_details.cached_tokens` 拼写并丢弃原生 `prompt_cache_miss_tokens`（用 `prompt_tokens - cacheRead` 推导 miss）。插件无法在运行期恢复原生字段（不 patch node_modules），当两个缓存字段语义不一致时，新采集数据的 hit/miss 分桶可能与官方账单存在偏差；插件侧参考映射 `mapWireUsage` 已按原生字段优先。
 - SQLite 使用 Node 内置 `node:sqlite`；数据库为 `~/.dsh/deepseek-usage/` 下的单机级存储。
 
 ## License

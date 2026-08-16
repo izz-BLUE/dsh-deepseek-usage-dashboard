@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { assertValidPriceEntry, costOfBuckets, DEFAULT_PRICE_ENTRIES, priceEntriesEqual, resolvePriceEntry } from '../src/core/pricing.ts'
 import { zeroBuckets } from '../src/core/mapping.ts'
+import { DEEPSEEK_2026_08_17_SCHEDULE, prepareScheduleSet, resolvePricing } from '../src/core/schedule.ts'
 
 describe('resolvePriceEntry', () => {
   it('prefers the exact model match over the fallback', () => {
@@ -80,6 +81,30 @@ describe('costOfBuckets', () => {
   it('costs nothing for zero tokens', () => {
     const cost = costOfBuckets(resolvePriceEntry(DEFAULT_PRICE_ENTRIES, 'deepseek-v4-flash'), zeroBuckets())
     expect(cost.total).toBe(0n)
+  })
+})
+
+describe('official billing reference fixture (2026-08-17 off-peak)', () => {
+  it('prices the official DeepSeek day totals at the off-peak flash rates', () => {
+    // The DeepSeek official backend day (cache hit 59,261,184 / cache miss
+    // 1,033,483 / output 325,656) resolved against the 2026-08-17 schedule's
+    // off-peak flash rates (0.05 / 1.50 / 4.50 CNY per million):
+    //   59.261184 × 0.05 + 1.033483 × 1.50 + 0.325656 × 4.50 = ¥5.978736.
+    const requestTimeMs = Date.parse('2026-08-17T02:00:00+08:00') // off-peak
+    const resolved = resolvePricing(prepareScheduleSet([DEEPSEEK_2026_08_17_SCHEDULE]), 'deepseek-v4-flash', requestTimeMs)
+    expect(resolved.status).toBe('priced')
+    if (resolved.status !== 'priced') throw new Error('expected priced')
+    expect(resolved.bandId).toBe('off-peak')
+    const cost = costOfBuckets(resolved.rates, {
+      ...zeroBuckets(),
+      cacheHitInputTokens: 59_261_184,
+      cacheMissInputTokens: 1_033_483,
+      outputTokens: 325_656,
+    })
+    expect(cost.cacheHit).toBe(2_963_059n) // ¥2.963059
+    expect(cost.cacheMiss).toBe(1_550_225n) // ¥1.550225
+    expect(cost.output).toBe(1_465_452n) // ¥1.465452
+    expect(cost.total).toBe(5_978_736n) // ¥5.978736
   })
 })
 

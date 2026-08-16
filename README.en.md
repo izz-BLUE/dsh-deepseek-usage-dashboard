@@ -65,17 +65,17 @@ Data lives in `~/.dsh/deepseek-usage/usage.db` (SQLite). The API key is resolved
 
 ## Data source & mapping
 
-The statistics come from **session event logs** via the official replayable projection registry (`ctx.sessionProjections`, the same seam `@linxin666/dsh-live-stats` uses) plus a startup catch-up scan over `ctx.sessionQuery`. The official DeepSeek adapter (`@deepseek-ai/dsh-llm-deepseek`) maps wire usage as (`translate.mapUsage`):
+The statistics come from **session event logs** via the official replayable projection registry (`ctx.sessionProjections`, the same seam `@linxin666/dsh-live-stats` uses) plus a startup catch-up scan over `ctx.sessionQuery`. The runtime capture only ever sees the harness `TokenUsage` produced by the official DeepSeek adapter (`@deepseek-ai/dsh-llm-deepseek`, `translate.mapUsage`):
 
-| DeepSeek wire field | harness `TokenUsage` | dashboard bucket |
+| DeepSeek wire field | harness `TokenUsage` (adapter-converted) | dashboard bucket |
 | --- | --- | --- |
-| `prompt_cache_hit_tokens` (or `prompt_tokens_details.cached_tokens`) | `cacheReadTokens` | `cacheHitInputTokens` |
-| `prompt_tokens - cacheRead` (disjoint; `prompt_cache_miss_tokens`) | `inputTokens` | `cacheMissInputTokens` |
+| `prompt_cache_hit_tokens` or `prompt_tokens_details.cached_tokens` (adapter prefers the latter) | `cacheReadTokens` | `cacheHitInputTokens` |
+| `prompt_tokens - cacheRead` (disjoint; the adapter discards the native `prompt_cache_miss_tokens`) | `inputTokens` | `cacheMissInputTokens` |
 | `completion_tokens` | `outputTokens` | `outputTokens` |
 | `completion_tokens_details.reasoning_tokens` | `reasoningTokens` | `reasoningTokens` |
 | (never reported by DeepSeek) | `cacheWriteTokens` (absent) | contributes 0 |
 
-The equivalence is pinned by tests (`tests/mapping.spec.ts`).
+The plugin's own exported wire reference mapping `mapWireUsage` (`src/core/mapping.ts`) **prefers the native DeepSeek billing fields**: `cacheHit = prompt_cache_hit_tokens ?? prompt_tokens_details?.cached_tokens`, `cacheMiss = prompt_cache_miss_tokens ?? max(0, prompt_tokens - cacheHit)`. `cached_tokens` is only a fallback spelling and never unconditionally overrides a native hit (the two are not proven semantically identical), and the fallback miss can never go negative. Because the runtime capture path only sees the adapter-converted `TokenUsage`, the buckets stay exactly as the harness reports them (`cacheHit = cacheReadTokens`, `cacheMiss = inputTokens`); the reference mapping is for integrations that map wire payloads themselves. Tests: `tests/mapping.spec.ts`.
 
 ## Security
 
@@ -90,6 +90,7 @@ The equivalence is pinned by tests (`tests/mapping.spec.ts`).
 - Steps are attributed to the header in force when they start; a mid-turn header change applies to the following steps.
 - The balance endpoint is fixed to `https://api.deepseek.com` and is not configurable (per spec).
 - Estimates are based on the configured price table — DeepSeek's official bills are authoritative.
+- Runtime token buckets come from the official adapter's `mapUsage`: it prefers the `prompt_tokens_details.cached_tokens` spelling and discards the native `prompt_cache_miss_tokens` (deriving miss as `prompt_tokens - cacheRead`). The plugin cannot recover the native fields at runtime (no `node_modules` patching), so when the two cache spellings disagree, the hit/miss split of newly captured usage may diverge from the official bill; the plugin-side reference mapping `mapWireUsage` already prefers the native fields.
 - SQLite uses Node's built-in `node:sqlite`; the database file is a single machine-level store under `~/.dsh/deepseek-usage/`.
 
 ## License

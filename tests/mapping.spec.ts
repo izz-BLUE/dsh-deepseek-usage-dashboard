@@ -1,17 +1,96 @@
 /**
- * Pins the DeepSeek wire-usage -> harness TokenUsage mapping to the official
- * adapter's implementation (dsh-llm-deepseek translate.mapUsage):
- *   cacheRead = prompt_tokens_details?.cached_tokens ?? prompt_cache_hit_tokens
- *   inputTokens = prompt_tokens - cacheRead            (disjoint, uncached only)
- *   outputTokens = completion_tokens
- *   reasoningTokens = completion_tokens_details?.reasoning_tokens
+ * The plugin's wire-usage mapping and the runtime bucket path.
+ *
+ * `mapWireUsage` prefers the native DeepSeek billing fields (deliberately
+ * diverging from the official adapter, which prefers the OpenAI-compat
+ * `cached_tokens` spelling and discards `prompt_cache_miss_tokens`):
+ *
+ *   cacheHit  = prompt_cache_hit_tokens ?? prompt_tokens_details?.cached_tokens
+ *   cacheMiss = prompt_cache_miss_tokens ?? max(0, prompt_tokens - cacheHit)
+ *   output    = completion_tokens
+ *   reasoning = completion_tokens_details?.reasoning_tokens
+ *
+ * The runtime capture path sees only the adapter's harness `TokenUsage`, so
+ * `bucketsFromTokenUsage` keeps `cacheHit = cacheReadTokens`,
+ * `cacheMiss = inputTokens` exactly as the harness reports (see
+ * `src/core/mapping.ts` for the documented limitation).
  */
 
 import { describe, expect, it } from 'vitest'
 import { bucketsFromTokenUsage, mapWireUsage, zeroBuckets, type WireUsage } from '../src/core/mapping.ts'
 
-describe('mapWireUsage (official adapter equivalence)', () => {
-  it('maps the documented DeepSeek fields', () => {
+describe('mapWireUsage (native billing fields first)', () => {
+  it('case A: both native fields map directly', () => {
+    const usage = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 200,
+      prompt_cache_hit_tokens: 800,
+      prompt_cache_miss_tokens: 200,
+    })
+    expect(usage.cacheReadTokens).toBe(800)
+    expect(usage.inputTokens).toBe(200)
+    expect(usage.outputTokens).toBe(200)
+  })
+
+  it('case B: native fields win over the cached_tokens spelling', () => {
+    // prompt_tokens_details.cached_tokens is NOT proven semantically equal to
+    // prompt_cache_hit_tokens, so it must never override a present native hit.
+    const usage = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_cache_hit_tokens: 800,
+      prompt_cache_miss_tokens: 200,
+      prompt_tokens_details: { cached_tokens: 850 },
+    })
+    expect(usage.cacheReadTokens).toBe(800)
+    expect(usage.inputTokens).toBe(200)
+  })
+
+  it('case C: miss falls back to the residual when only the hit is reported', () => {
+    const usage = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_cache_hit_tokens: 800,
+    })
+    expect(usage.cacheReadTokens).toBe(800)
+    expect(usage.inputTokens).toBe(200)
+  })
+
+  it('case D: cached_tokens is the fallback spelling when the native hit is absent', () => {
+    const usage = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_tokens_details: { cached_tokens: 800 },
+    })
+    expect(usage.cacheReadTokens).toBe(800)
+    expect(usage.inputTokens).toBe(200)
+  })
+
+  it('case E: never crashes on invalid or negative values', () => {
+    // Negative native hit passes through the reference mapping…
+    const negativeHit = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_cache_hit_tokens: -5,
+      prompt_cache_miss_tokens: 200,
+    })
+    expect(negativeHit.cacheReadTokens).toBe(-5)
+    expect(negativeHit.inputTokens).toBe(200)
+    // …and the runtime bucket path rejects it instead of accumulating garbage.
+    expect(bucketsFromTokenUsage(negativeHit)).toBeUndefined()
+
+    // A hit larger than prompt_tokens clamps the derived miss to zero.
+    const overHit = mapWireUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_cache_hit_tokens: 1200,
+    })
+    expect(overHit.cacheReadTokens).toBe(1200)
+    expect(overHit.inputTokens).toBe(0)
+    expect(() => mapWireUsage({ prompt_tokens: Number.NaN, completion_tokens: 0 })).not.toThrow()
+  })
+
+  it('maps the documented DeepSeek fields with reasoning', () => {
     const wire: WireUsage = {
       prompt_tokens: 100,
       completion_tokens: 20,
@@ -20,8 +99,6 @@ describe('mapWireUsage (official adapter equivalence)', () => {
       completion_tokens_details: { reasoning_tokens: 5 },
     }
     const usage = mapWireUsage(wire)
-    // prompt_tokens includes the cache hit; the harness inputTokens is
-    // disjoint (uncached only), exactly like the official adapter.
     expect(usage.inputTokens).toBe(70)
     expect(usage.outputTokens).toBe(20)
     expect(usage.cacheReadTokens).toBe(30)
@@ -30,35 +107,7 @@ describe('mapWireUsage (official adapter equivalence)', () => {
     expect(usage.cacheWriteTokens).toBeUndefined()
   })
 
-  it('prefers the prompt_tokens_details.cached_tokens spelling', () => {
-    const usage = mapWireUsage({
-      prompt_tokens: 100,
-      completion_tokens: 10,
-      prompt_cache_hit_tokens: 40,
-      prompt_tokens_details: { cached_tokens: 55 },
-    })
-    expect(usage.cacheReadTokens).toBe(55)
-    expect(usage.inputTokens).toBe(45)
-  })
-
-  it('omits cache and reasoning fields when the wire reports none', () => {
-    const usage = mapWireUsage({ prompt_tokens: 100, completion_tokens: 10 })
-    expect(usage.inputTokens).toBe(100)
-    expect(usage.cacheReadTokens).toBeUndefined()
-    expect(usage.reasoningTokens).toBeUndefined()
-    expect(usage.cacheWriteTokens).toBeUndefined()
-  })
-
-  it('subtracts cache hits even without the miss field', () => {
-    const usage = mapWireUsage({
-      prompt_tokens: 100,
-      completion_tokens: 10,
-      prompt_cache_hit_tokens: 25,
-    })
-    expect(usage.inputTokens).toBe(75)
-  })
-
-  it('matches the official adapter byte-for-byte on a full payload', () => {
+  it('maps a full payload with native miss present', () => {
     const wire: WireUsage = {
       prompt_tokens: 1234,
       completion_tokens: 567,
@@ -73,9 +122,17 @@ describe('mapWireUsage (official adapter equivalence)', () => {
       reasoningTokens: 88,
     })
   })
+
+  it('omits cache and reasoning fields when the wire reports none', () => {
+    const usage = mapWireUsage({ prompt_tokens: 100, completion_tokens: 10 })
+    expect(usage.inputTokens).toBe(100)
+    expect(usage.cacheReadTokens).toBeUndefined()
+    expect(usage.reasoningTokens).toBeUndefined()
+    expect(usage.cacheWriteTokens).toBeUndefined()
+  })
 })
 
-describe('bucketsFromTokenUsage (daily buckets)', () => {
+describe('bucketsFromTokenUsage (runtime bucket path)', () => {
   it('breaks a mapped usage into disjoint daily buckets', () => {
     const buckets = bucketsFromTokenUsage(mapWireUsage({
       prompt_tokens: 100,
@@ -106,10 +163,12 @@ describe('bucketsFromTokenUsage (daily buckets)', () => {
     expect(bucketsFromTokenUsage(undefined)).toBeUndefined()
   })
 
-  it('rejects invalid counts instead of accumulating garbage', () => {
+  it('rejects invalid counts instead of accumulating garbage or crashing', () => {
     expect(bucketsFromTokenUsage({ inputTokens: -1, outputTokens: 0 })).toBeUndefined()
     expect(bucketsFromTokenUsage({ inputTokens: 1.5, outputTokens: 0 })).toBeUndefined()
     expect(bucketsFromTokenUsage({ inputTokens: Number.NaN, outputTokens: 0 })).toBeUndefined()
+    expect(bucketsFromTokenUsage({ inputTokens: 0, outputTokens: 0, cacheReadTokens: -1 })).toBeUndefined()
+    expect(bucketsFromTokenUsage({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 1.5 })).toBeUndefined()
   })
 
   it('provides a zero baseline', () => {
