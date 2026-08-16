@@ -1,6 +1,6 @@
 {
   "name": "@linxin666/dsh-deepseek-usage-dashboard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Daily DeepSeek token usage dashboard and balance watch for DSH Web",
   "packageManager": "pnpm@11.9.0",
   "engines": {
