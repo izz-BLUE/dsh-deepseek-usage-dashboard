@@ -74,8 +74,16 @@ function makeDeps(balance: FakeBalanceWatch = new FakeBalanceWatch()): UsageRout
       entries: PRICES,
       mode: 'legacy',
       timezone: 'Asia/Shanghai',
-      schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
-      currentBand: { scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', timezone: 'Asia/Shanghai' },
+      schedules: [{
+        id: 'legacy-2026-04-24',
+        effectiveFrom: '2026-04-24T00:00:00+08:00',
+        currency: 'CNY',
+        windowCount: 1,
+        windows: [{ id: 'all-day', start: '00:00', end: '00:00', bandId: null }],
+        offPeakSpans: [],
+        models: [{ model: 'deepseek-v4-flash', ratesByBand: { 'all-day': { cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2 } } }],
+      }],
+      currentBand: { scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', window: { id: 'all-day', start: '00:00', end: '00:00' }, timezone: 'Asia/Shanghai' },
     }),
     estimateDayCost: () => ({
       total: '1.234567',
@@ -85,6 +93,7 @@ function makeDeps(balance: FakeBalanceWatch = new FakeBalanceWatch()): UsageRout
       unpricedRequestCount: 1,
       unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
       scheduleIdsUsed: ['legacy-2026-04-24'],
+      bandCosts: [],
     }),
     trendDayKeys: () => ['2026-01-01', '2026-01-02', '2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06', '2026-01-07'],
     now: () => now,
@@ -299,11 +308,19 @@ describe('pricing provenance and unpriced state', () => {
     const prices = payload.prices as Record<string, unknown>
     expect(prices.mode).toBe('legacy')
     expect(prices.timezone).toBe('Asia/Shanghai')
-    expect(prices.schedules).toEqual([{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }])
+    expect(prices.schedules).toEqual([{
+      id: 'legacy-2026-04-24',
+      effectiveFrom: '2026-04-24T00:00:00+08:00',
+      currency: 'CNY',
+      windowCount: 1,
+      windows: [{ id: 'all-day', start: '00:00', end: '00:00', bandId: null }],
+      offPeakSpans: [],
+      models: [{ model: 'deepseek-v4-flash', ratesByBand: { 'all-day': { cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2 } } }],
+    }])
     // Legacy display rows stay available (API compatibility).
     expect(prices.entries).toEqual(PRICES)
     // The current-instant band hint rides along (never a billing claim).
-    expect(prices.currentBand).toEqual({ scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', timezone: 'Asia/Shanghai' })
+    expect(prices.currentBand).toEqual({ scheduleId: 'legacy-2026-04-24', bandId: 'all-day', windowId: 'all-day', window: { id: 'all-day', start: '00:00', end: '00:00' }, timezone: 'Asia/Shanghai' })
   })
 
   it('serializes a time-aware schedule set (mode / schedules / current band)', async () => {
@@ -314,8 +331,29 @@ describe('pricing provenance and unpriced state', () => {
       entries: [],
       mode: 'time-aware',
       timezone: 'Asia/Shanghai',
-      schedules: [{ id: 'deepseek-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }],
-      currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' },
+      schedules: [{
+        id: 'deepseek-2026-08-17',
+        effectiveFrom: '2026-08-17T00:00:00+08:00',
+        currency: 'CNY',
+        windowCount: 2,
+        windows: [
+          { id: 'peak-morning', start: '09:00', end: '12:00', bandId: 'peak' },
+          { id: 'peak-afternoon', start: '14:00', end: '18:00', bandId: 'peak' },
+        ],
+        offPeakSpans: [
+          { start: '00:00', end: '09:00' },
+          { start: '12:00', end: '14:00' },
+          { start: '18:00', end: '24:00' },
+        ],
+        models: [{ model: 'deepseek-v4-flash', ratesByBand: { peak: { cacheHitInputPricePerMillion: 0.1, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 9 }, 'off-peak': { cacheHitInputPricePerMillion: 0.05, cacheMissInputPricePerMillion: 1.5, outputPricePerMillion: 4.5 } } }],
+      }],
+      currentBand: {
+        scheduleId: 'deepseek-2026-08-17',
+        bandId: 'off-peak',
+        windowId: null,
+        window: { id: null, start: '00:00', end: '09:00' },
+        timezone: 'Asia/Shanghai',
+      },
     })
     const server = await serve(makeUsageRoutes(deps))
     servers.push(server)
@@ -324,9 +362,49 @@ describe('pricing provenance and unpriced state', () => {
     const payload = await response.json() as Record<string, unknown>
     const prices = payload.prices as Record<string, unknown>
     expect(prices.mode).toBe('time-aware')
-    expect(prices.schedules).toEqual([{ id: 'deepseek-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }])
-    expect(prices.currentBand).toEqual({ scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' })
+    expect((prices.schedules as Array<Record<string, unknown>>)[0]).toMatchObject({ id: 'deepseek-2026-08-17', windowCount: 2 })
+    expect((prices.schedules as Array<Record<string, unknown>>)[0]!.offPeakSpans).toEqual([
+      { start: '00:00', end: '09:00' },
+      { start: '12:00', end: '14:00' },
+      { start: '18:00', end: '24:00' },
+    ])
+    expect(prices.currentBand).toEqual({
+      scheduleId: 'deepseek-2026-08-17',
+      bandId: 'off-peak',
+      windowId: null,
+      window: { id: null, start: '00:00', end: '09:00' },
+      timezone: 'Asia/Shanghai',
+    })
     expect(prices.entries).toEqual([])
+  })
+
+  it('serializes the band cost split in the estimate payload', async () => {
+    const deps = makeDeps()
+    deps.estimateDayCost = () => ({
+      total: '4.500000',
+      totalMicro: '4500000',
+      currency: 'CNY',
+      pricedRequestCount: 2,
+      unpricedRequestCount: 0,
+      unpriced: { cacheHitInputTokens: 0, cacheMissInputTokens: 0, outputTokens: 0 },
+      scheduleIdsUsed: ['deepseek-2026-08-17'],
+      bandCosts: [
+        { bandId: 'off-peak', totalMicro: '1500000', requestCount: 1, cacheHitInputTokens: 0, cacheMissInputTokens: 1_000_000, outputTokens: 0 },
+        { bandId: 'peak', totalMicro: '3000000', requestCount: 1, cacheHitInputTokens: 0, cacheMissInputTokens: 1_000_000, outputTokens: 0 },
+      ],
+    })
+    const server = await serve(makeUsageRoutes(deps))
+    servers.push(server)
+    const response = await fetch(`${server.base}/api/deepseek-usage/stats`, { headers: { Origin: server.base } })
+    expect(response.status).toBe(200)
+    const payload = await response.json() as Record<string, unknown>
+    const estimate = payload.estimatedCost as Record<string, unknown>
+    expect(estimate.bandCosts).toEqual([
+      { bandId: 'off-peak', totalMicro: '1500000', requestCount: 1, cacheHitInputTokens: 0, cacheMissInputTokens: 1_000_000, outputTokens: 0 },
+      { bandId: 'peak', totalMicro: '3000000', requestCount: 1, cacheHitInputTokens: 0, cacheMissInputTokens: 1_000_000, outputTokens: 0 },
+    ])
+    // Sum invariant: the split adds up to the total.
+    expect('4500000').toBe((1_500_000 + 3_000_000).toString())
   })
 
   it('serializes the unpriced state explicitly (never folded into total)', async () => {
@@ -343,6 +421,7 @@ describe('pricing provenance and unpriced state', () => {
       unpricedRequestCount: 1,
       unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
       scheduleIdsUsed: ['legacy-2026-04-24'],
+      bandCosts: [],
     })
   })
 

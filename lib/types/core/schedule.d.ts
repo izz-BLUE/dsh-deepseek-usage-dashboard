@@ -89,6 +89,23 @@ export declare function bandForMinute(schedule: PricingSchedule, minuteOfDay: nu
     bandId: string;
     window: PricingWindow | null;
 };
+/** Render a minute-of-day as "HH:MM" (1440 renders as "24:00"). */
+export declare function formatMinuteOfDay(minutes: number): string;
+/**
+ * The off-peak (complement) spans of a schedule as [start, end) minute
+ * pairs — every minute outside the declared windows. An all-day window
+ * yields no spans. Used for band display; validation guarantees the
+ * declared windows never overlap.
+ */
+export declare function offPeakSpans(schedule: PricingSchedule): Array<{
+    start: number;
+    end: number;
+}>;
+/** The off-peak span containing one minute of day, or null inside a window. */
+export declare function offPeakSpanForMinute(schedule: PricingSchedule, minuteOfDay: number): {
+    start: number;
+    end: number;
+} | null;
 /**
  * Normalize an `effectiveFrom` value into an ISO 8601 instant with offset.
  * A legacy `YYYY-MM-DD` becomes midnight in `timezone` (e.g.
@@ -188,6 +205,18 @@ export interface PricableRow {
     /** Request start time (epoch ms); historical rows use the settlement approximation. */
     requestTime: number;
 }
+/** One band's share of one day's estimate (cost + per-category token usage). */
+export interface BandCostShare {
+    /** The resolved band id ('off-peak', 'peak', a window id, …). */
+    bandId: string;
+    /** This band's estimated cost in integer micro-units (1e-6 of `currency`). */
+    totalMicro: string;
+    /** Rows priced under this band (failed rows never count). */
+    requestCount: number;
+    cacheHitInputTokens: number;
+    cacheMissInputTokens: number;
+    outputTokens: number;
+}
 /** One day's cost estimate with explicit priced/unpriced accounting. */
 export interface DayCostEstimate {
     /** Total estimated cost as a decimal string in `currency` units. */
@@ -207,6 +236,13 @@ export interface DayCostEstimate {
     };
     /** The schedule ids that priced this day (empty while everything is unpriced). */
     scheduleIdsUsed: string[];
+    /**
+     * One entry per resolved band, in order of FIRST appearance — the
+     * peak/off-peak cost split. Every priced row contributes to exactly one
+     * band (the band its OWN request time resolved to); unpriced rows are in
+     * no band. Sums: `Σ bandCosts[].totalMicro === totalMicro`.
+     */
+    bandCosts: BandCostShare[];
 }
 /** The zero estimate (no store / no rows yet). */
 export declare function emptyDayCostEstimate(currency?: string): DayCostEstimate;

@@ -52,6 +52,16 @@ export const DockLine = memo(function DockLine() {
   const balanceText = balance !== null && balance.infos.length > 0
     ? amount(balance.infos[0].totalBalance, balance.infos[0].currency)
     : '--'
+  const band = data.prices.currentBand ?? null
+  const bandText = band === null
+    ? ''
+    : band.bandId === 'off-peak'
+      ? tt('panel.currentBandOffPeak')
+      : band.bandId === 'peak'
+        ? tt('panel.currentBandPeak')
+        : band.bandId === 'all-day'
+          ? tt('panel.currentBandAllDay')
+          : band.bandId
   return (
     <div style={STYLE}>
       {tt('dock.today', {
@@ -61,6 +71,7 @@ export const DockLine = memo(function DockLine() {
         cost: amount(data.estimatedCost.total, data.estimatedCost.currency),
         balance: balanceText,
       })}
+      {bandText !== '' ? ` · ${bandText}` : null}
     </div>
   )
 })

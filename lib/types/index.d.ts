@@ -11,8 +11,8 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from 'schemastery';
 import { type PriceEntry } from './core/pricing.ts';
-import { type PricingSchedule } from './core/schedule.ts';
-import { type PricingMode } from './host/routes.ts';
+import { type PricingSchedule, type PricingScheduleSet } from './core/schedule.ts';
+import { type CurrentBandMeta, type PricingMode } from './host/routes.ts';
 /** Services required by the host plugin. */
 export declare const inject: string[];
 /** Settings namespace of this plugin (the settings page edits it). */
@@ -53,6 +53,15 @@ export interface ResolvedPricingSet {
  */
 export declare function resolvePricingSet(config: Config): ResolvedPricingSet;
 /**
+ * The band the CURRENT instant falls into (lightweight UI hint — an
+ * estimate aid, never a billing claim). Computed against the latest
+ * effective schedule in the schedule's own timezone; the matched window's
+ * span (or the off-peak span containing now) rides along for display.
+ * Exported as a pure function so the UI gate can pin the exact 08:59/09:00/
+ * 12:00/14:00/18:00 boundaries.
+ */
+export declare function currentBandOf(set: PricingScheduleSet, nowMs: number): CurrentBandMeta | null;
+/**
  * Register the usage dashboard host half.
  * @param ctx - host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
@@ -65,8 +74,9 @@ export { fetchBalance, sanitizeBalanceBody, BALANCE_URL, BALANCE_TIMEOUT_MS } fr
 export { mapWireUsage, bucketsFromTokenUsage } from './core/mapping.ts';
 export { dayKeyOf, dayRangeMs, DAY_TIMEZONE, minuteOfDayInTimezone, dayRangeMsInTimezone } from './core/day.ts';
 export { resolveDeepseekEndpoint, DEEPSEEK_API_HOST, DEFAULT_DEEPSEEK_PROVIDER } from './host/endpoint.ts';
-export { DEFAULT_SCHEDULES, DEEPSEEK_2026_08_17_SCHEDULE, LEGACY_SCHEDULE, aggregateDayCost, bandForMinute, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
+export { DEFAULT_SCHEDULES, DEEPSEEK_2026_08_17_SCHEDULE, LEGACY_SCHEDULE, aggregateDayCost, bandForMinute, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, offPeakSpans, offPeakSpanForMinute, formatMinuteOfDay, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
+export type { CurrentBandMeta } from './host/routes.ts';
 export type { PriceEntry, TokenRates } from './core/pricing.ts';
 export { DEFAULT_PRICE_ENTRIES, OLD_BUILTIN_DEFAULT_PRICE_ENTRIES, isLegacyBuiltinDefaultPrices, resolvePriceEntry, priceEntriesEqual, } from './core/pricing.ts';
-export type { PricingSchedule, PricingScheduleSet, PricingWindow, ModelPricing, ResolvedPricing, DayCostEstimate, } from './core/schedule.ts';
+export type { PricingSchedule, PricingScheduleSet, PricingWindow, ModelPricing, ResolvedPricing, DayCostEstimate, BandCostShare, } from './core/schedule.ts';
 //# sourceMappingURL=index.d.ts.map

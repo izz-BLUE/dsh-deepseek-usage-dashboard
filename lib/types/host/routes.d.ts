@@ -14,7 +14,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver';
 import type { DailyStats } from '../core/stats.ts';
 import type { BalanceSnapshot, BalanceErrorCode } from '../core/balance.ts';
-import type { PriceEntry } from '../core/pricing.ts';
+import type { PriceEntry, TokenRates } from '../core/pricing.ts';
 import type { DayCostEstimate } from '../core/schedule.ts';
 import type { UsageStore } from '../core/sqlite-store.ts';
 import type { BalanceStatus, BalanceWatch } from './balance-service.ts';
@@ -31,6 +31,23 @@ export interface PriceScheduleMeta {
     effectiveFrom: string;
     currency: string;
     windowCount: number;
+    /** The declared windows (times + band mapping) — band display data. */
+    windows: Array<{
+        id: string;
+        start: string;
+        end: string;
+        bandId: string | null;
+    }>;
+    /** The implicit off-peak spans (complement of the windows), "HH:MM" ranges. */
+    offPeakSpans: Array<{
+        start: string;
+        end: string;
+    }>;
+    /** Per-model rates by band — the "current rate" line of the cost card. */
+    models: Array<{
+        model: string;
+        ratesByBand: Record<string, TokenRates>;
+    }>;
 }
 /** The band the current instant falls into (lightweight UI hint only). */
 export interface CurrentBandMeta {
@@ -38,6 +55,12 @@ export interface CurrentBandMeta {
     bandId: string;
     /** The window that matched, or null for the implicit off-peak band. */
     windowId: string | null;
+    /** The matched window's span, or the off-peak span containing now (implicit band). */
+    window: {
+        id: string | null;
+        start: string;
+        end: string;
+    } | null;
     timezone: string;
 }
 /** The price metadata shown next to every estimate. */

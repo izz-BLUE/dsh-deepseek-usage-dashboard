@@ -29,6 +29,34 @@ function formatAmount(total: string, currency: string): string {
   return `${currency === 'CNY' ? '¥' : `${currency} `}${total}`
 }
 
+/** Render a micro-unit string as a 6-decimal amount ("812891" → "0.812891"). */
+function microDecimal(micro: string): string {
+  const negative = micro.startsWith('-')
+  const digits = negative ? micro.slice(1) : micro
+  const padded = digits.padStart(7, '0')
+  const whole = padded.slice(0, -6)
+  const fraction = padded.slice(-6)
+  return `${negative ? '-' : ''}${whole}.${fraction}`
+}
+
+/** One per-million rate with the currency prefix ("¥0.05/1M", two decimals). */
+function rateText(currency: string, rate: number): string {
+  return `${currency === 'CNY' ? '¥' : `${currency} `}${rate.toFixed(2)}/1M`
+}
+
+/** The user-facing band label for a resolved band id. */
+function bandLabel(t: typeof tt, bandId: string): string {
+  if (bandId === 'off-peak') return t('panel.currentBandOffPeak')
+  if (bandId === 'peak') return t('panel.currentBandPeak')
+  if (bandId === 'all-day') return t('panel.currentBandAllDay')
+  return bandId
+}
+
+/** The display name of a schedule (the official one reads as a product name). */
+function scheduleName(scheduleId: string): string {
+  return scheduleId === 'deepseek-2026-08-17' ? 'DeepSeek 2026-08-17' : scheduleId
+}
+
 type StatTone = 'accent' | 'positive' | 'danger'
 
 /** A labeled stat card with a compact, semantic visual treatment. */
@@ -213,6 +241,142 @@ function BalanceDetail(props: { balance: BalanceSnapshotWire; stale: boolean; t:
   )
 }
 
+/**
+ * The estimated-cost card: amount, current-band badge (off-peak / peak),
+ * pricing provenance (official schedule + timezone; internal version moves
+ * to a tooltip), the current period and current rates, the peak/off-peak
+ * cost split, and the unpriced marker.
+ */
+function EstimateCard(props: { data: NonNullable<UsageStoreSnapshot['data']>; t: typeof tt }) {
+  const { data, t } = props
+  const prices = data.prices
+  const estimate = data.estimatedCost
+  // Defensive: an older Host (v0.1.0 payload) lacks these fields entirely —
+  // the card must degrade, never crash, during a mixed-version transition.
+  const schedules = prices.schedules ?? []
+  const bandCosts = estimate.bandCosts ?? []
+  const band = prices.currentBand ?? null
+
+  // Internal pricing-config identity — SECONDARY metadata, tooltip only.
+  const metaTitle = `${t('panel.priceVersion')} ${prices.version}${prices.updatedAt !== null
+    ? ` · ${t('panel.priceUpdated')}: ${new Date(prices.updatedAt).toLocaleString()}`
+    : ''}`
+
+  // The active schedule (the current instant's, falling back to the day's).
+  const activeSchedule = schedules.find(schedule => schedule.id === (band?.scheduleId ?? estimate.scheduleIdsUsed[0] ?? schedules[0]?.id))
+
+  // Band badge: label + tone (green off-peak / amber peak / neutral).
+  let badge: { bandId: string; label: string; tone: 'off' | 'peak' | 'neutral'; title: string } | null = null
+  if (band !== null) {
+    const schedule = schedules.find(item => item.id === band.scheduleId)
+    const peakList = (schedule?.windows ?? [])
+      .filter(window => (window.bandId ?? window.id) === 'peak')
+      .map(window => `${window.start}–${window.end}`)
+      .join('、')
+    const offPeakList = (schedule?.offPeakSpans ?? [])
+      .map(span => `${span.start}–${span.end}`)
+      .join('、')
+    const tooltip = peakList !== '' || offPeakList !== ''
+      ? t('panel.windowsTooltip', { peak: peakList, offpeak: offPeakList })
+      : ''
+    badge = {
+      bandId: band.bandId,
+      label: bandLabel(t, band.bandId),
+      tone: band.bandId === 'off-peak' ? 'off' : band.bandId === 'peak' ? 'peak' : 'neutral',
+      title: tooltip,
+    }
+  }
+
+  // The current period ("当前时段：00:00–09:00").
+  const currentWindow = band?.window !== undefined && band?.window !== null
+    ? t('panel.currentWindow', { span: `${band.window.start}–${band.window.end}` })
+    : null
+
+  // The current band's rates of the primary model ("当前费率（deepseek-v4-flash）：…").
+  let currentRates: string | null = null
+  if (band !== null && activeSchedule !== undefined) {
+    const model = activeSchedule.models.find(item => item.model === 'deepseek-v4-flash') ?? activeSchedule.models[0]
+    const rates = model?.ratesByBand[band.bandId]
+    if (model !== undefined && rates !== undefined) {
+      currentRates = t('panel.currentRates', {
+        model: model.model,
+        hit: rateText(estimate.currency, rates.cacheHitInputPricePerMillion),
+        miss: rateText(estimate.currency, rates.cacheMissInputPricePerMillion),
+        out: rateText(estimate.currency, rates.outputPricePerMillion),
+      })
+    }
+  }
+
+  // Off-peak = exactly half of peak — a fact of the OFFICIAL schedule only.
+  const offPeakHalf = band?.bandId === 'off-peak' && band?.scheduleId === 'deepseek-2026-08-17'
+
+  return (
+    <div className={css.estimateCard}>
+      <span className={css.estimateValue}>
+        {formatAmount(estimate.total, estimate.currency)}
+      </span>
+      {badge !== null
+        ? (
+          <span
+            className={`${css.bandBadge} ${badge.tone === 'off' ? css.bandOffPeak : badge.tone === 'peak' ? css.bandPeak : css.bandNeutral}`.trim()}
+            role="status"
+            data-band={badge.bandId}
+            title={badge.title}
+          >
+            {badge.label}
+          </span>
+        )
+        : null}
+      <span className={css.estimateProvenance} title={metaTitle}>{pricingProvenance(data, t)}</span>
+      {estimate.scheduleIdsUsed.length > 1
+        ? <span className={css.estimateBand}>{t('panel.pricingMultiple')}</span>
+        : null}
+      {currentWindow !== null
+        ? <span className={css.estimateBand} data-window="current">{currentWindow}</span>
+        : null}
+      {currentRates !== null
+        ? <span className={css.estimateRates}>{currentRates}</span>
+        : null}
+      {offPeakHalf
+        ? <span className={css.estimateNote} role="status">{t('panel.offPeakHalfNote')}</span>
+        : null}
+      <span className={css.estimateNote}>{t('panel.estimateNote')}</span>
+      {estimate.unpricedRequestCount > 0
+        ? (
+          <span className={css.estimateUnpriced} role="status">
+            {t('panel.unpriced')} · {t('panel.unpricedDetail', { count: estimate.unpricedRequestCount })}
+          </span>
+        )
+        : null}
+      {bandCosts.length > 0
+        ? (
+          <div className={css.bandBreakdown} aria-label={t('panel.bandBreakdownLabel')}>
+            <span className={css.bandBreakdownLabel}>{t('panel.bandBreakdownLabel')}</span>
+            {bandCosts.map(share => (
+              <span
+                key={share.bandId}
+                className={share.requestCount === 0 ? `${css.bandBreakdownRow} ${css.bandBreakdownRowZero}` : css.bandBreakdownRow}
+                data-band={share.bandId}
+                title={t('panel.bandCostTokens', {
+                  hit: formatCount(share.cacheHitInputTokens),
+                  miss: formatCount(share.cacheMissInputTokens),
+                  out: formatCount(share.outputTokens),
+                })}
+              >
+                {t('panel.bandCostRow', {
+                  band: bandLabel(t, share.bandId),
+                  cost: formatAmount(microDecimal(share.totalMicro), estimate.currency),
+                  count: formatCount(share.requestCount),
+                })}
+              </span>
+            ))}
+          </div>
+        )
+        : null}
+    </div>
+  )
+}
+
 /** The pricing provenance line under the estimate (schedule aware). */
 function pricingProvenance(data: NonNullable<UsageStoreSnapshot['data']>, t: typeof tt): string {
   const estimate = data.estimatedCost
@@ -220,11 +384,14 @@ function pricingProvenance(data: NonNullable<UsageStoreSnapshot['data']>, t: typ
     const date = data.prices.entries[0]?.effectiveFrom ?? '--'
     return t('panel.pricingModeLegacy', { date })
   }
-  if (estimate.scheduleIdsUsed.length > 1) return t('panel.pricingMultiple')
-  const scheduleId = estimate.scheduleIdsUsed[0] ?? data.prices.schedules[0]?.id
-  const schedule = data.prices.schedules.find(item => item.id === scheduleId)
-  const date = schedule?.effectiveFrom.slice(0, 10) ?? '--'
-  return t('panel.pricingModeSchedules', { date })
+  const scheduleId = data.prices.currentBand?.scheduleId
+    ?? estimate.scheduleIdsUsed[0]
+    ?? (data.prices.schedules ?? [])[0]?.id
+  const schedule = (data.prices.schedules ?? []).find(item => item.id === scheduleId)
+  const name = schedule === undefined ? '--' : scheduleName(schedule.id)
+  const timezone = data.prices.currentBand?.timezone ?? data.prices.timezone
+  const timezoneText = timezone === 'Asia/Shanghai' ? t('panel.timezoneBeijing', { tz: timezone }) : timezone
+  return t('panel.pricingNow', { name, timezone: timezoneText })
 }
 
 /**
@@ -343,33 +510,7 @@ export function DashboardView(props: { snapshot: UsageStoreSnapshot; onRefresh: 
             <div className={css.twoCol}>
               <section aria-label={t('panel.estimateLabel')}>
                 <h2 className={css.sectionTitle}>{t('panel.estimateLabel')}</h2>
-                <div className={css.estimateCard}>
-                  <span className={css.estimateValue}>
-                    {formatAmount(data.estimatedCost.total, data.estimatedCost.currency)}
-                  </span>
-                  <span className={css.estimateProvenance}>{pricingProvenance(data, t)}</span>
-                  {data.prices.currentBand !== null
-                    ? (
-                      <span className={css.estimateBand} role="status">
-                        {data.prices.currentBand.bandId === 'off-peak'
-                          ? t('panel.currentBandOffPeak')
-                          : t('panel.currentBandPeak')}
-                      </span>
-                    )
-                    : null}
-                  <span className={css.estimateNote}>{t('panel.estimateNote')}</span>
-                  {data.estimatedCost.unpricedRequestCount > 0
-                    ? (
-                      <span className={css.estimateUnpriced} role="status">
-                        {t('panel.unpriced')} · {t('panel.unpricedDetail', { count: data.estimatedCost.unpricedRequestCount })}
-                      </span>
-                    )
-                    : null}
-                  <span className={css.estimateMeta}>
-                    {t('panel.priceVersion')}: {data.prices.version}
-                    {data.prices.updatedAt !== null ? ` · ${t('panel.priceUpdated')}: ${new Date(data.prices.updatedAt).toLocaleString()}` : ''}
-                  </span>
-                </div>
+                <EstimateCard data={data} t={t} />
               </section>
 
               <section aria-label={t('panel.balance')}>

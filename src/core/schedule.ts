@@ -124,6 +124,40 @@ export function bandForMinute(schedule: PricingSchedule, minuteOfDay: number): {
   return { bandId: OFF_PEAK_BAND_ID, window: null }
 }
 
+/** Render a minute-of-day as "HH:MM" (1440 renders as "24:00"). */
+export function formatMinuteOfDay(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return `${String(hours).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+}
+
+/**
+ * The off-peak (complement) spans of a schedule as [start, end) minute
+ * pairs — every minute outside the declared windows. An all-day window
+ * yields no spans. Used for band display; validation guarantees the
+ * declared windows never overlap.
+ */
+export function offPeakSpans(schedule: PricingSchedule): Array<{ start: number; end: number }> {
+  const covered: Array<[number, number]> = []
+  for (const window of schedule.windows) {
+    for (const interval of windowIntervals(window)) covered.push(interval)
+  }
+  covered.sort((a, b) => a[0] - b[0])
+  const spans: Array<{ start: number; end: number }> = []
+  let cursor = 0
+  for (const [start, end] of covered) {
+    if (start > cursor) spans.push({ start: cursor, end: start })
+    if (end > cursor) cursor = end
+  }
+  if (cursor < 1440) spans.push({ start: cursor, end: 1440 })
+  return spans
+}
+
+/** The off-peak span containing one minute of day, or null inside a window. */
+export function offPeakSpanForMinute(schedule: PricingSchedule, minuteOfDay: number): { start: number; end: number } | null {
+  return offPeakSpans(schedule).find(span => minuteOfDay >= span.start && minuteOfDay < span.end) ?? null
+}
+
 /** Whether a value is an ISO 8601 instant with an explicit offset/Z designator. */
 const ISO_INSTANT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
 
@@ -496,6 +530,19 @@ export interface PricableRow {
   requestTime: number
 }
 
+/** One band's share of one day's estimate (cost + per-category token usage). */
+export interface BandCostShare {
+  /** The resolved band id ('off-peak', 'peak', a window id, …). */
+  bandId: string
+  /** This band's estimated cost in integer micro-units (1e-6 of `currency`). */
+  totalMicro: string
+  /** Rows priced under this band (failed rows never count). */
+  requestCount: number
+  cacheHitInputTokens: number
+  cacheMissInputTokens: number
+  outputTokens: number
+}
+
 /** One day's cost estimate with explicit priced/unpriced accounting. */
 export interface DayCostEstimate {
   /** Total estimated cost as a decimal string in `currency` units. */
@@ -515,6 +562,13 @@ export interface DayCostEstimate {
   }
   /** The schedule ids that priced this day (empty while everything is unpriced). */
   scheduleIdsUsed: string[]
+  /**
+   * One entry per resolved band, in order of FIRST appearance — the
+   * peak/off-peak cost split. Every priced row contributes to exactly one
+   * band (the band its OWN request time resolved to); unpriced rows are in
+   * no band. Sums: `Σ bandCosts[].totalMicro === totalMicro`.
+   */
+  bandCosts: BandCostShare[]
 }
 
 /** The zero estimate (no store / no rows yet). */
@@ -527,6 +581,7 @@ export function emptyDayCostEstimate(currency = 'CNY'): DayCostEstimate {
     unpricedRequestCount: 0,
     unpriced: { cacheHitInputTokens: 0, cacheMissInputTokens: 0, outputTokens: 0 },
     scheduleIdsUsed: [],
+    bandCosts: [],
   }
 }
 
@@ -555,6 +610,8 @@ export function aggregateDayCost(schedules: readonly PricingSchedule[], rows: re
   let unpricedCount = 0
   const unpricedTokens = { cacheHitInputTokens: 0, cacheMissInputTokens: 0, outputTokens: 0 }
   const scheduleIds = new Set<string>()
+  // Band split: keyed by the band the row's OWN request time resolved to.
+  const bandShares = new Map<string, { total: bigint; count: number; cacheHit: number; cacheMiss: number; output: number }>()
   for (const row of rows) {
     if (row.failed) continue // failed requests have no known usage — never priced
     const resolved = resolvePricing(prepared, row.model, row.requestTime)
@@ -567,7 +624,15 @@ export function aggregateDayCost(schedules: readonly PricingSchedule[], rows: re
     }
     priced += 1
     scheduleIds.add(resolved.scheduleId)
-    total += costOfBuckets(resolved.rates, bucketsOf(row)).total
+    const cost = costOfBuckets(resolved.rates, bucketsOf(row)).total
+    total += cost
+    const share = bandShares.get(resolved.bandId) ?? { total: 0n, count: 0, cacheHit: 0, cacheMiss: 0, output: 0 }
+    share.total += cost
+    share.count += 1
+    share.cacheHit += row.cacheHit
+    share.cacheMiss += row.cacheMiss
+    share.output += row.output
+    bandShares.set(resolved.bandId, share)
   }
   return {
     total: formatMicro(total, 6),
@@ -577,5 +642,13 @@ export function aggregateDayCost(schedules: readonly PricingSchedule[], rows: re
     unpricedRequestCount: unpricedCount,
     unpriced: unpricedTokens,
     scheduleIdsUsed: [...scheduleIds],
+    bandCosts: [...bandShares.entries()].map(([bandId, share]) => ({
+      bandId,
+      totalMicro: share.total.toString(),
+      requestCount: share.count,
+      cacheHitInputTokens: share.cacheHit,
+      cacheMissInputTokens: share.cacheMiss,
+      outputTokens: share.output,
+    })),
   }
 }

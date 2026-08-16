@@ -53,6 +53,7 @@ const SAMPLE: UsageStatsWire = {
     unpricedRequestCount: 1,
     unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
     scheduleIdsUsed: ['legacy-2026-04-24'],
+    bandCosts: [],
   },
   prices: {
     version: 3,
@@ -60,7 +61,15 @@ const SAMPLE: UsageStatsWire = {
     entries: [{ model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' }],
     mode: 'legacy',
     timezone: 'Asia/Shanghai',
-    schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
+    schedules: [{
+      id: 'legacy-2026-04-24',
+      effectiveFrom: '2026-04-24T00:00:00+08:00',
+      currency: 'CNY',
+      windowCount: 1,
+      windows: [{ id: 'all-day', start: '00:00', end: '00:00', bandId: null }],
+      offPeakSpans: [],
+      models: [{ model: 'deepseek-chat', ratesByBand: { 'all-day': { cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2 } } }],
+    }],
     currentBand: null,
   },
   balance: {
@@ -80,6 +89,27 @@ const SAMPLE: UsageStatsWire = {
 }
 
 const EMPTY_SNAPSHOT = { data: null, error: null, loading: false, refreshing: false }
+
+/** The official 2026-08-17 schedule exactly as served on the wire. */
+const OFFICIAL_SCHEDULE_WIRE = {
+  id: 'deepseek-2026-08-17',
+  effectiveFrom: '2026-08-17T00:00:00+08:00',
+  currency: 'CNY',
+  windowCount: 2,
+  windows: [
+    { id: 'peak-morning', start: '09:00', end: '12:00', bandId: 'peak' },
+    { id: 'peak-afternoon', start: '14:00', end: '18:00', bandId: 'peak' },
+  ],
+  offPeakSpans: [
+    { start: '00:00', end: '09:00' },
+    { start: '12:00', end: '14:00' },
+    { start: '18:00', end: '24:00' },
+  ],
+  models: [
+    { model: 'deepseek-v4-flash', ratesByBand: { peak: { cacheHitInputPricePerMillion: 0.1, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 9 }, 'off-peak': { cacheHitInputPricePerMillion: 0.05, cacheMissInputPricePerMillion: 1.5, outputPricePerMillion: 4.5 } } },
+    { model: 'deepseek-v4-pro', ratesByBand: { peak: { cacheHitInputPricePerMillion: 0.3, cacheMissInputPricePerMillion: 9, outputPricePerMillion: 27 }, 'off-peak': { cacheHitInputPricePerMillion: 0.15, cacheMissInputPricePerMillion: 4.5, outputPricePerMillion: 13.5 } } },
+  ],
+}
 
 /** Render the dashboard in a given document language. */
 function renderDashboard(lang: string) {
@@ -137,10 +167,13 @@ describe('dashboard rendering', () => {
     expect(screen.getByRole('meter', { name: '2026-01-01: 0' }).getAttribute('aria-valuenow')).toBe('0')
   })
 
-  it('shows the estimate note and price version', () => {
+  it('shows the estimate note; the internal price version moves to a tooltip', () => {
     renderDashboard('zh')
-    expect(screen.getByText(/非官方账单/)).toBeDefined()
-    expect(screen.getByText(/价格版本/)).toBeDefined()
+    expect(screen.getByText(/估算，非官方账单/)).toBeDefined()
+    // Internal provenance (version / updatedAt) is SECONDARY now — tooltip
+    // only, never a first-class line on the card.
+    expect(document.querySelector('[title*="价格版本 3"]')).not.toBeNull()
+    expect(screen.queryByText(/^价格版本/)).toBeNull()
   })
 
   it('renders the legacy pricing provenance under the estimate', () => {
@@ -165,14 +198,22 @@ describe('dashboard rendering', () => {
         ...SAMPLE.prices,
         mode: 'time-aware' as const,
         entries: [],
-        schedules: [{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }],
-        currentBand: { scheduleId: 'sched-2026-08-17', bandId: 'off-peak', windowId: null, timezone: 'Asia/Shanghai' },
+        schedules: [{
+          id: 'sched-2026-08-17',
+          effectiveFrom: '2026-08-17T00:00:00+08:00',
+          currency: 'CNY',
+          windowCount: 2,
+          windows: [{ id: 'peak-morning', start: '09:00', end: '12:00', bandId: 'peak' }],
+          offPeakSpans: [{ start: '00:00', end: '09:00' }, { start: '12:00', end: '24:00' }],
+          models: [{ model: 'deepseek-v4-flash', ratesByBand: { peak: { cacheHitInputPricePerMillion: 0.1, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 9 }, 'off-peak': { cacheHitInputPricePerMillion: 0.05, cacheMissInputPricePerMillion: 1.5, outputPricePerMillion: 4.5 } } }],
+        }],
+        currentBand: { scheduleId: 'sched-2026-08-17', bandId: 'off-peak', windowId: null, window: { id: null, start: '00:00', end: '09:00' }, timezone: 'Asia/Shanghai' },
       },
       estimatedCost: { ...SAMPLE.estimatedCost, unpricedRequestCount: 0, scheduleIdsUsed: ['sched-2026-08-17'] },
     }
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: schedulesMode }} onRefresh={() => undefined} />)
-    expect(screen.getByText(/2026-08-17 · 分时段计价/)).toBeDefined()
-    expect(screen.getByText(/当前：空闲时段/)).toBeDefined()
+    expect(screen.getByText(/sched-2026-08-17 · 分时定价 · 北京时间 Asia\/Shanghai/)).toBeDefined()
+    expect(screen.getByText('空闲时段')).toBeDefined()
     expect(screen.queryByText(/部分用量未计价/)).toBeNull()
 
     const multi = { ...schedulesMode, estimatedCost: { ...schedulesMode.estimatedCost, scheduleIdsUsed: ['a', 'b'] } }
@@ -180,7 +221,7 @@ describe('dashboard rendering', () => {
     expect(screen.getByText('多种价格计划')).toBeDefined()
   })
 
-  it('shows the current peak band hint (off-peak → 空闲时段, peak → 高峰时段)', () => {
+  it('shows the current peak band badge (off-peak → 空闲时段, peak → 高峰时段)', () => {
     document.documentElement.lang = 'zh'
     const peak = {
       ...SAMPLE,
@@ -188,18 +229,119 @@ describe('dashboard rendering', () => {
         ...SAMPLE.prices,
         mode: 'time-aware' as const,
         entries: [],
-        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'peak', windowId: 'peak-morning', timezone: 'Asia/Shanghai' },
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'peak', windowId: 'peak-morning', window: { id: 'peak-morning', start: '09:00', end: '12:00' }, timezone: 'Asia/Shanghai' },
       },
     }
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: peak }} onRefresh={() => undefined} />)
-    expect(screen.getByText(/当前：高峰时段/)).toBeDefined()
-    expect(screen.queryByText(/当前：空闲时段/)).toBeNull()
+    expect(screen.getByText('高峰时段')).toBeDefined()
+    expect(screen.queryByText('空闲时段')).toBeNull()
+  })
+
+  it('shows the off-peak badge with official provenance, period, rates, and window tooltip', () => {
+    document.documentElement.lang = 'zh'
+    const mode = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'time-aware' as const,
+        entries: [],
+        schedules: [OFFICIAL_SCHEDULE_WIRE],
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, window: { id: null, start: '00:00', end: '09:00' }, timezone: 'Asia/Shanghai' },
+      },
+      estimatedCost: { ...SAMPLE.estimatedCost, unpricedRequestCount: 0, scheduleIdsUsed: ['deepseek-2026-08-17'] },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: mode }} onRefresh={() => undefined} />)
+    const badge = document.querySelector('[data-band="off-peak"]')
+    expect(badge?.textContent).toContain('空闲时段')
+    expect(screen.getByText('DeepSeek 2026-08-17 · 分时定价 · 北京时间 Asia/Shanghai')).toBeDefined()
+    expect(screen.getByText('当前时段：00:00–09:00')).toBeDefined()
+    expect(screen.getByText('当前费率为高峰时段的 50%')).toBeDefined()
+    expect(screen.getByText(/当前费率（deepseek-v4-flash）：命中 ¥0\.05\/1M · 未命中 ¥1\.50\/1M · 输出 ¥4\.50\/1M/)).toBeDefined()
+    // The full window picture lives in the badge tooltip, not on the card.
+    expect(badge?.getAttribute('title')).toContain('高峰时段：09:00–12:00、14:00–18:00')
+    expect(badge?.getAttribute('title')).toContain('空闲时段：00:00–09:00、12:00–14:00、18:00–24:00')
+  })
+
+  it('shows the peak badge with the matched window; no 50% note during peak', () => {
+    document.documentElement.lang = 'zh'
+    const mode = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'time-aware' as const,
+        entries: [],
+        schedules: [OFFICIAL_SCHEDULE_WIRE],
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'peak', windowId: 'peak-morning', window: { id: 'peak-morning', start: '09:00', end: '12:00' }, timezone: 'Asia/Shanghai' },
+      },
+      estimatedCost: { ...SAMPLE.estimatedCost, unpricedRequestCount: 0, scheduleIdsUsed: ['deepseek-2026-08-17'] },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: mode }} onRefresh={() => undefined} />)
+    const badge = document.querySelector('[data-band="peak"]')
+    expect(badge?.textContent).toContain('高峰时段')
+    expect(screen.getByText('当前时段：09:00–12:00')).toBeDefined()
+    expect(screen.queryByText('当前费率为高峰时段的 50%')).toBeNull()
+  })
+
+  it('renders the peak/off-peak cost split and dims zero bands', () => {
+    document.documentElement.lang = 'zh'
+    const withSplit = {
+      ...SAMPLE,
+      estimatedCost: {
+        ...SAMPLE.estimatedCost,
+        unpricedRequestCount: 0,
+        bandCosts: [
+          { bandId: 'off-peak', totalMicro: '812891', requestCount: 1, cacheHitInputTokens: 8263680, cacheMissInputTokens: 99113, outputTokens: 55786 },
+          { bandId: 'peak', totalMicro: '0', requestCount: 0, cacheHitInputTokens: 0, cacheMissInputTokens: 0, outputTokens: 0 },
+        ],
+      },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: withSplit }} onRefresh={() => undefined} />)
+    expect(screen.getByText(/空闲时段 ¥0\.812891 · 1 次/)).toBeDefined()
+    expect(screen.getByText(/高峰时段 ¥0\.000000 · 0 次/)).toBeDefined()
+    const peakRow = document.querySelector('[data-band="peak"]')
+    expect(peakRow?.className).toContain('bandBreakdownRowZero')
+    expect(peakRow?.getAttribute('title')).toContain('命中 0 · 未命中 0 · 输出 0')
+  })
+
+  it('keeps the band badge and the unpriced marker together', () => {
+    document.documentElement.lang = 'zh'
+    const mode = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'time-aware' as const,
+        entries: [],
+        schedules: [OFFICIAL_SCHEDULE_WIRE],
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, window: { id: null, start: '00:00', end: '09:00' }, timezone: 'Asia/Shanghai' },
+      },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: mode }} onRefresh={() => undefined} />)
+    // SAMPLE keeps unpricedRequestCount = 1 → both the badge and the marker
+    // coexist without hiding the priced total.
+    expect(screen.getByText('空闲时段')).toBeDefined()
+    expect(screen.getByText(/部分用量未计价/)).toBeDefined()
+    expect(screen.getByText(/¥1\.234567/)).toBeDefined()
   })
 
   it('renders an empty state without data', () => {
     document.documentElement.lang = 'zh'
     render(<DashboardView snapshot={EMPTY_SNAPSHOT} onRefresh={() => undefined} />)
     expect(document.body.textContent).toContain('…')
+  })
+
+  it('degrades gracefully on an old-host payload (band fields missing)', () => {
+    // A v0.1.0 Host serves no bandCosts / schedules / currentBand — the new
+    // card must render the total without crashing during the transition.
+    document.documentElement.lang = 'zh'
+    const oldHost = {
+      ...SAMPLE,
+      estimatedCost: { ...SAMPLE.estimatedCost, bandCosts: undefined },
+      prices: { ...SAMPLE.prices, schedules: undefined, currentBand: undefined },
+    } as unknown as UsageStatsWire
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: oldHost }} onRefresh={() => undefined} />)
+    expect(screen.getByText(/¥1\.234567/)).toBeDefined()
+    expect(screen.queryByText('空闲时段')).toBeNull()
+    expect(screen.queryByText(/时段分解/)).toBeNull()
   })
 
   it('warns when the endpoint is not api.deepseek.com', () => {
@@ -239,6 +381,31 @@ describe('dock line', () => {
     setUsageStore(store)
     render(<DockLine />)
     expect(document.body.textContent?.trim() ?? '').toBe('')
+  })
+
+  it('appends the current band word to the dock line when known', async () => {
+    document.documentElement.lang = 'zh'
+    const withBand = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'time-aware' as const,
+        entries: [],
+        schedules: [OFFICIAL_SCHEDULE_WIRE],
+        currentBand: { scheduleId: 'deepseek-2026-08-17', bandId: 'off-peak', windowId: null, window: { id: null, start: '00:00', end: '09:00' }, timezone: 'Asia/Shanghai' },
+      },
+    }
+    class FakeApi extends UsageApi {
+      override async stats(): Promise<UsageStatsWire> {
+        return withBand
+      }
+    }
+    const store = new UsageStore(new FakeApi())
+    setUsageStore(store)
+    await store.fetch()
+    render(<DockLine />)
+    const text = document.body.textContent ?? ''
+    expect(text).toContain('估算 ¥1.234567 · 余额 ¥12.34 · 空闲时段')
   })
 })
 

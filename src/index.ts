@@ -22,6 +22,9 @@ import {
   aggregateDayCost,
   bandForMinute,
   buildSchedulesFromPriceEntries,
+  formatMinuteOfDay,
+  offPeakSpanForMinute,
+  offPeakSpans,
   prepareScheduleSet,
   pricingSetsEqual,
   validatePricingScheduleSet,
@@ -34,7 +37,7 @@ import { UsageStore } from './core/sqlite-store.ts'
 import { DEFAULT_DEEPSEEK_PROVIDER, deepseekApiKeyRef, resolveDeepseekEndpoint } from './host/endpoint.ts'
 import { registerUsageCapture, scanAllSessions } from './host/collector.ts'
 import { BalanceWatch } from './host/balance-service.ts'
-import { makeUsageRoutes, type PriceTableMeta, type PricingMode } from './host/routes.ts'
+import { makeUsageRoutes, type CurrentBandMeta, type PriceTableMeta, type PricingMode } from './host/routes.ts'
 
 /** Services required by the host plugin. */
 export const inject = ['sessionProjections', 'sessionQuery', 'settings', 'credentials', 'webServer']
@@ -158,6 +161,39 @@ export function resolvePricingSet(config: Config): ResolvedPricingSet {
 }
 
 /**
+ * The band the CURRENT instant falls into (lightweight UI hint — an
+ * estimate aid, never a billing claim). Computed against the latest
+ * effective schedule in the schedule's own timezone; the matched window's
+ * span (or the off-peak span containing now) rides along for display.
+ * Exported as a pure function so the UI gate can pin the exact 08:59/09:00/
+ * 12:00/14:00/18:00 boundaries.
+ */
+export function currentBandOf(set: PricingScheduleSet, nowMs: number): CurrentBandMeta | null {
+  const prepared = prepareScheduleSet(set.schedules)
+  let active: (typeof prepared)[number] | undefined
+  for (const candidate of prepared) {
+    if (candidate.effectiveMs <= nowMs) active = candidate
+    else break
+  }
+  if (active === undefined) return null
+  const minute = minuteOfDayInTimezone(nowMs, active.schedule.timezone)
+  const band = bandForMinute(active.schedule, minute)
+  const window = band.window !== null
+    ? { id: band.window.id, start: band.window.start, end: band.window.end }
+    : (() => {
+      const span = offPeakSpanForMinute(active.schedule, minute)
+      return span === null ? null : { id: null, start: formatMinuteOfDay(span.start), end: formatMinuteOfDay(span.end) }
+    })()
+  return {
+    scheduleId: active.schedule.id,
+    bandId: band.bandId,
+    windowId: band.window?.id ?? null,
+    window,
+    timezone: active.schedule.timezone,
+  }
+}
+
+/**
  * Register the usage dashboard host half.
  * @param ctx - host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
@@ -185,27 +221,24 @@ export function apply(ctx: Context, config: Config = {}): void {
         effectiveFrom: schedule.effectiveFrom,
         currency: schedule.currency,
         windowCount: schedule.windows.length,
+        windows: schedule.windows.map(window => ({
+          id: window.id,
+          start: window.start,
+          end: window.end,
+          bandId: window.bandId ?? null,
+        })),
+        offPeakSpans: offPeakSpans(schedule).map(span => ({
+          start: formatMinuteOfDay(span.start),
+          end: formatMinuteOfDay(span.end),
+        })),
+        models: schedule.models.map(model => ({
+          model: model.model,
+          ratesByBand: model.ratesByBand,
+        })),
       })),
       // The band the CURRENT instant falls into (lightweight UI hint — an
-      // estimate aid, never a billing claim). Computed against the latest
-      // effective schedule in the schedule's own timezone.
-      currentBand: (() => {
-        const now = Date.now()
-        const prepared = prepareScheduleSet(set.schedules)
-        let active: (typeof prepared)[number] | undefined
-        for (const candidate of prepared) {
-          if (candidate.effectiveMs <= now) active = candidate
-          else break
-        }
-        if (active === undefined) return null
-        const band = bandForMinute(active.schedule, minuteOfDayInTimezone(now, active.schedule.timezone))
-        return {
-          scheduleId: active.schedule.id,
-          bandId: band.bandId,
-          windowId: band.window?.id ?? null,
-          timezone: active.schedule.timezone,
-        }
-      })(),
+      // estimate aid, never a billing claim).
+      currentBand: currentBandOf(set, Date.now()),
       // Legacy display rows (kept for API compatibility; the time-aware
       // engine prices rows from the schedules, not from these entries).
       entries: set.mode === 'legacy'
@@ -341,9 +374,13 @@ export {
   resolvePricing,
   normalizeEffectiveFrom,
   isInsideWindow,
+  offPeakSpans,
+  offPeakSpanForMinute,
+  formatMinuteOfDay,
   OFF_PEAK_BAND_ID,
   ALL_DAY_WINDOW_ID,
 } from './core/schedule.ts'
+export type { CurrentBandMeta } from './host/routes.ts'
 export type { PriceEntry, TokenRates } from './core/pricing.ts'
 export {
   DEFAULT_PRICE_ENTRIES,
@@ -359,4 +396,5 @@ export type {
   ModelPricing,
   ResolvedPricing,
   DayCostEstimate,
+  BandCostShare,
 } from './core/schedule.ts'

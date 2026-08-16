@@ -42,12 +42,25 @@ export interface PriceEntryWire {
   effectiveFrom: string
 }
 
+/** One model's rates inside a schedule (the "current rate" line of the card). */
+export interface TokenRatesWire {
+  cacheHitInputPricePerMillion: number
+  cacheMissInputPricePerMillion: number
+  outputPricePerMillion: number
+}
+
 /** One schedule's identity served to the browser. */
 export interface PriceScheduleWire {
   id: string
   effectiveFrom: string
   currency: string
   windowCount: number
+  /** Declared windows (times + band mapping) — band display data. */
+  windows: Array<{ id: string; start: string; end: string; bandId: string | null }>
+  /** Implicit off-peak spans (complement of the windows), "HH:MM" ranges. */
+  offPeakSpans: Array<{ start: string; end: string }>
+  /** Per-model rates by band. */
+  models: Array<{ model: string; ratesByBand: Record<string, TokenRatesWire> }>
 }
 
 /** How the pricing config is expressed. */
@@ -59,7 +72,21 @@ export interface CurrentBandWire {
   bandId: string
   /** The window that matched, or null for the implicit off-peak band. */
   windowId: string | null
+  /** The matched window's span, or the off-peak span containing now (implicit band). */
+  window: { id: string | null; start: string; end: string } | null
   timezone: string
+}
+
+/** One band's share of one day's estimate. */
+export interface BandCostShareWire {
+  bandId: string
+  /** This band's estimated cost in integer micro-units (1e-6 of `currency`). */
+  totalMicro: string
+  /** Rows priced under this band. */
+  requestCount: number
+  cacheHitInputTokens: number
+  cacheMissInputTokens: number
+  outputTokens: number
 }
 
 /** One day's cost estimate with explicit priced/unpriced accounting. */
@@ -81,6 +108,8 @@ export interface DayCostEstimateWire {
   }
   /** Schedule ids that priced this day (several when a day spans schedules). */
   scheduleIdsUsed: string[]
+  /** One entry per resolved band, in order of first appearance. */
+  bandCosts: BandCostShareWire[]
 }
 
 /** The full stats payload. */
