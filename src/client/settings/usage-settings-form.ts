@@ -88,10 +88,12 @@ export interface UsageSettingsFormState extends CardShell {
   providerId: string
   /** Draft text for the refresh interval. */
   balanceRefreshMinutes: string
-  /** How pricing is expressed in the effective config. */
+  /** How pricing is expressed in the EFFECTIVE config (matches the host). */
   pricingMode: 'legacy' | 'time-aware'
   /** The schedules' timezone (also the legacy normalization zone). */
   pricingTimezone: string
+  /** True when the effective time-aware pricing is the BUILT-IN default set. */
+  pricingBuiltinDefault: boolean
   /** The configured schedule identities + windows (read-only display). */
   pricingSchedules: Array<{
     id: string
@@ -154,6 +156,40 @@ export function defaultPriceRows(): PriceEntryWire[] {
   ]
 }
 
+/**
+ * Whether a persisted `prices` config is exactly the pristine default table
+ * (model-keyed, order-insensitive) — i.e. the old settings system just
+ * persisted its schema default and the user never customized pricing. The
+ * host treats such a config as an implicit default and runs the built-in
+ * time-aware schedules, so the settings card must report the same effective
+ * mode instead of claiming "legacy custom pricing".
+ */
+function isDefaultPriceRows(rows: readonly PriceEntryWire[]): boolean {
+  const keyOf = (row: PriceEntryWire): string => JSON.stringify([
+    row.model,
+    row.cacheHitInputPricePerMillion,
+    row.cacheMissInputPricePerMillion,
+    row.outputPricePerMillion,
+    row.currency,
+    row.effectiveFrom,
+  ])
+  const mapOf = (list: readonly PriceEntryWire[]): Map<string, number> => {
+    const map = new Map<string, number>()
+    for (const row of list) {
+      const key = keyOf(row)
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return map
+  }
+  const a = mapOf(rows)
+  const b = mapOf(defaultPriceRows())
+  if (a.size !== b.size) return false
+  for (const [key, count] of a) {
+    if (b.get(key) !== count) return false
+  }
+  return true
+}
+
 /** One staged field edit. */
 type StagedField =
   | { kind: 'set'; value: unknown }
@@ -211,6 +247,12 @@ export class UsageSettingsForm {
     const prices = this.draftPrices(snapshot, section)
     const overridden = this.userHas(snapshot, 'prices')
     const schedules = Array.isArray(section.pricingSchedules) ? section.pricingSchedules : []
+    // Effective mode mirrors the host resolution: configured schedules, or a
+    // persisted copy of the pristine default table (the v0.1.0 settings
+    // schema persisted its default), or NO prices at all → the built-in
+    // time-aware schedules run. Only a genuinely customized legacy `prices`
+    // keeps the legacy mode alive.
+    const customLegacy = Array.isArray(section.prices) && section.prices.length > 0 && !isDefaultPriceRows(section.prices)
     return {
       available: snapshot.status !== 'loading',
       exposed: snapshot.status === 'ready',
@@ -222,8 +264,9 @@ export class UsageSettingsForm {
       enabled,
       providerId,
       balanceRefreshMinutes: refresh,
-      pricingMode: schedules.length > 0 ? 'time-aware' : 'legacy',
+      pricingMode: schedules.length > 0 || !customLegacy ? 'time-aware' : 'legacy',
       pricingTimezone: schedules[0]?.timezone ?? 'Asia/Shanghai',
+      pricingBuiltinDefault: schedules.length === 0 && !customLegacy,
       pricingSchedules: schedules.map(schedule => ({
         id: schedule.id,
         effectiveFrom: schedule.effectiveFrom,

@@ -47,6 +47,12 @@ export interface ResolvedPricingSet {
     mode: PricingMode;
 }
 /**
+ * Resolve the pricing configuration from a config, validated.
+ * Exported so the upgrade-compatibility gate can assert the exact
+ * builtin-default vs custom-legacy decision table.
+ */
+export declare function resolvePricingSet(config: Config): ResolvedPricingSet;
+/**
  * Register the usage dashboard host half.
  * @param ctx - host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
@@ -61,5 +67,6 @@ export { dayKeyOf, dayRangeMs, DAY_TIMEZONE, minuteOfDayInTimezone, dayRangeMsIn
 export { resolveDeepseekEndpoint, DEEPSEEK_API_HOST, DEFAULT_DEEPSEEK_PROVIDER } from './host/endpoint.ts';
 export { DEFAULT_SCHEDULES, DEEPSEEK_2026_08_17_SCHEDULE, LEGACY_SCHEDULE, aggregateDayCost, bandForMinute, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
 export type { PriceEntry, TokenRates } from './core/pricing.ts';
+export { DEFAULT_PRICE_ENTRIES, OLD_BUILTIN_DEFAULT_PRICE_ENTRIES, isLegacyBuiltinDefaultPrices, resolvePriceEntry, priceEntriesEqual, } from './core/pricing.ts';
 export type { PricingSchedule, PricingScheduleSet, PricingWindow, ModelPricing, ResolvedPricing, DayCostEstimate, } from './core/schedule.ts';
 //# sourceMappingURL=index.d.ts.map

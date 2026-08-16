@@ -68,6 +68,7 @@ export declare const zh: {
     'settings.pricingModeSchedules': string;
     'settings.pricingTimezone': string;
     'settings.pricingSchedules': string;
+    'settings.pricingBuiltinDefault': string;
     'settings.pricingOffPeakHint': string;
     'settings.pricingSchedulesHint': string;
     'settings.prices': string;
@@ -163,6 +164,7 @@ export declare const en: {
     'settings.pricingModeSchedules': string;
     'settings.pricingTimezone': string;
     'settings.pricingSchedules': string;
+    'settings.pricingBuiltinDefault': string;
     'settings.pricingOffPeakHint': string;
     'settings.pricingSchedulesHint': string;
     'settings.prices': string;

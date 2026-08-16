@@ -124,6 +124,102 @@ export function priceEntriesEqual(a: readonly PriceEntry[], b: readonly PriceEnt
   })
 }
 
+/**
+ * The v0.1.0 built-in default table: five rows INCLUDING the built-in `*`
+ * fallback (the pre-time-aware engine shipped a silent wildcard). This is the
+ * exact table the old settings schema persisted as its default, so a stored
+ * copy is indistinguishable from a customization by mere presence.
+ *
+ * {@link isLegacyBuiltinDefaultPrices} detects that case structurally: a
+ * persisted copy of this table is an IMPLICIT default and must auto-transition
+ * to the built-in DEFAULT_SCHEDULES (legacy + official 2026-08-17), while any
+ * genuinely customized legacy `prices` keeps working as-is.
+ */
+export const OLD_BUILTIN_DEFAULT_PRICE_ENTRIES: PriceEntry[] = [
+  {
+    model: 'deepseek-v4-flash',
+    cacheHitInputPricePerMillion: 0.02,
+    cacheMissInputPricePerMillion: 1,
+    outputPricePerMillion: 2,
+    currency: 'CNY',
+    effectiveFrom: '2026-04-24',
+  },
+  {
+    model: 'deepseek-v4-pro',
+    cacheHitInputPricePerMillion: 0.025,
+    cacheMissInputPricePerMillion: 3,
+    outputPricePerMillion: 6,
+    currency: 'CNY',
+    effectiveFrom: '2026-04-24',
+  },
+  {
+    model: 'deepseek-chat',
+    cacheHitInputPricePerMillion: 0.02,
+    cacheMissInputPricePerMillion: 1,
+    outputPricePerMillion: 2,
+    currency: 'CNY',
+    effectiveFrom: '2026-04-24',
+  },
+  {
+    model: 'deepseek-reasoner',
+    cacheHitInputPricePerMillion: 0.02,
+    cacheMissInputPricePerMillion: 1,
+    outputPricePerMillion: 2,
+    currency: 'CNY',
+    effectiveFrom: '2026-04-24',
+  },
+  {
+    model: '*',
+    cacheHitInputPricePerMillion: 0.02,
+    cacheMissInputPricePerMillion: 1,
+    outputPricePerMillion: 2,
+    currency: 'CNY',
+    effectiveFrom: '2026-04-24',
+  },
+]
+
+/**
+ * Whether a persisted legacy `prices` config is EXACTLY the v0.1.0 built-in
+ * default table (model-keyed, order-insensitive — array order is not a user
+ * customization signal). True means "the user never touched the price table;
+ * the settings system just persisted the schema default", so the upgrade must
+ * NOT keep them on the old flat pricing forever.
+ *
+ * Any difference — a price, a model, a currency, an effectiveFrom, a row
+ * count — makes it an explicit custom config.
+ */
+export function isLegacyBuiltinDefaultPrices(prices: readonly PriceEntry[]): boolean {
+  return priceEntriesEqualNormalized(prices, OLD_BUILTIN_DEFAULT_PRICE_ENTRIES)
+}
+
+/** Structural equality over model-keyed maps (order-insensitive). */
+function priceEntriesEqualNormalized(a: readonly PriceEntry[], b: readonly PriceEntry[]): boolean {
+  if (a.length !== b.length) return false
+  const keyOf = (entry: PriceEntry): string => JSON.stringify([
+    entry.model,
+    entry.cacheHitInputPricePerMillion,
+    entry.cacheMissInputPricePerMillion,
+    entry.outputPricePerMillion,
+    entry.currency,
+    entry.effectiveFrom,
+  ])
+  const mapOf = (list: readonly PriceEntry[]): Map<string, number> => {
+    const map = new Map<string, number>()
+    for (const entry of list) {
+      const key = keyOf(entry)
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return map
+  }
+  const aMap = mapOf(a)
+  const bMap = mapOf(b)
+  if (aMap.size !== bMap.size) return false
+  for (const [key, count] of aMap) {
+    if (bMap.get(key) !== count) return false
+  }
+  return true
+}
+
 /** Validate one configured price entry; throws with a specific message. */
 export function assertValidPriceEntry(entry: PriceEntry, index: number): void {
   const where = `price entry ${index} (${entry.model})`

@@ -190,24 +190,28 @@ export function UsageSettingsCard(props: UsageSettingsCardProps) {
           ? (
             <>
               <p className={css.hint}>{t('settings.pricingTimezone')}: {state.pricingTimezone}</p>
-              <ul className={css.scheduleList}>
-                {state.pricingSchedules.map(schedule => (
-                  <li key={schedule.id}>
-                    <span className={css.scheduleLine}>
-                      {schedule.id} · {schedule.effectiveFrom} · {schedule.currency}
-                    </span>
-                    {schedule.windows.length > 0
-                      ? (
-                        <span className={css.scheduleWindows}>
-                          {schedule.windows.map(window => `${window.id} ${window.start}–${window.end}`).join(' · ')}
+              {state.pricingBuiltinDefault
+                ? <p className={css.hint} role="status">{t('settings.pricingBuiltinDefault')}</p>
+                : (
+                  <ul className={css.scheduleList}>
+                    {state.pricingSchedules.map(schedule => (
+                      <li key={schedule.id}>
+                        <span className={css.scheduleLine}>
+                          {schedule.id} · {schedule.effectiveFrom} · {schedule.currency}
                         </span>
-                      )
-                      : null}
-                  </li>
-                ))}
-              </ul>
+                        {schedule.windows.length > 0
+                          ? (
+                            <span className={css.scheduleWindows}>
+                              {schedule.windows.map(window => `${window.id} ${window.start}–${window.end}`).join(' · ')}
+                            </span>
+                          )
+                          : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               <p className={css.hint} role="status">{t('settings.pricingOffPeakHint')}</p>
-              <p className={css.hint} role="status">{t('settings.pricingSchedulesHint')}</p>
+              {!state.pricingBuiltinDefault ? <p className={css.hint} role="status">{t('settings.pricingSchedulesHint')}</p> : null}
             </>
           )
           : null}

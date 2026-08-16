@@ -75,10 +75,12 @@ export interface UsageSettingsFormState extends CardShell {
     providerId: string;
     /** Draft text for the refresh interval. */
     balanceRefreshMinutes: string;
-    /** How pricing is expressed in the effective config. */
+    /** How pricing is expressed in the EFFECTIVE config (matches the host). */
     pricingMode: 'legacy' | 'time-aware';
     /** The schedules' timezone (also the legacy normalization zone). */
     pricingTimezone: string;
+    /** True when the effective time-aware pricing is the BUILT-IN default set. */
+    pricingBuiltinDefault: boolean;
     /** The configured schedule identities + windows (read-only display). */
     pricingSchedules: Array<{
         id: string;

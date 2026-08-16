@@ -60,7 +60,7 @@ pnpm build
 | `providerId` | `deepseek-official` | 被统计为 DeepSeek 的 provider 路由 |
 | `balanceRefreshMinutes` | `10` | 余额刷新间隔（分钟） |
 | `pricingSchedules` | 内置两套（见下） | 分时段价格计划（time-aware pricing，优先于 `prices`；未配置时使用内置 legacy + 2026-08-17 官方价） |
-| `prices` | — | 旧版分模型价格表（legacy，仅在未配置 `pricingSchedules` 时生效；一旦显式配置，所有日期均按该表计价） |
+| `prices` | — | 旧版分模型价格表（legacy）。**仅真正自定义的 `prices` 会覆盖默认分时定价引擎**：旧版 0.1.0 设置系统持久化的内置默认表（结构比对、与行序无关）会被识别为隐式默认，自动切换到 `DEFAULT_SCHEDULES`，升级用户无需手动删除 `prices` |
 
 ### 计价（Pricing）
 
@@ -94,6 +94,8 @@ deepseek-usage:
 ```
 
 旧版 `prices` 配置**继续原样工作**（无需手改 JSON）：它会被归一化为按 `effectiveFrom` 分组的全天 schedule（`user-legacy-*`）。旧数据中的请求时间以落库时间为近似（`request_time_ms = time_ms` 回填），新写入的数据记录真实请求开始时间。
+
+**升级行为（v0.1.0 → v0.2.0）**：0.1.0 的设置系统会把 schema 默认价格表持久化进 `prices`，因此「存在 `prices`」≠「用户自定义过」。v0.2.0 对 `prices` 做结构比对（模型键归一、顺序无关）：与 0.1.0 内置默认表完全一致（含旧 `*` 兜底行）时视为**隐式默认**，自动启用内置 `DEFAULT_SCHEDULES`——8/16 及以前按 legacy、8/17 起按官方 2026-08-17 分时价，无需任何手动操作；任一价格/模型/币种/生效日期被真正修改过，才视为**显式自定义**并继续全程按该表计价（界面会明确显示「自定义旧版价格」）。
 
 数据保存在 `~/.dsh/deepseek-usage/usage.db`（SQLite）。API Key 通过 `@deepseek-ai/dsh-credentials` 解析 `llm-deepseek` 的凭据引用（默认 `DEEPSEEK_API_KEY`），以 Host 进程环境变量作为明确 fallback。
 

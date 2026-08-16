@@ -145,7 +145,7 @@ describe('dashboard rendering', () => {
 
   it('renders the legacy pricing provenance under the estimate', () => {
     renderDashboard('zh')
-    expect(screen.getByText(/旧版价格 · 2026-04-24/)).toBeDefined()
+    expect(screen.getByText(/自定义旧版价格 · 2026-04-24/)).toBeDefined()
   })
 
   it('renders the partial-unpriced state without hiding the priced total', () => {
@@ -356,9 +356,47 @@ describe('settings form (staged)', () => {
     const form = new UsageSettingsForm(scope)
     const state = form.bind().getSnapshot()
     expect(state.pricingMode).toBe('legacy')
+    expect(state.pricingBuiltinDefault).toBe(false)
     expect(state.pricingSchedules).toEqual([])
     expect(state.prices).toEqual([{ model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.5, cacheMissInputPricePerMillion: 2, outputPricePerMillion: 8, currency: 'CNY', effectiveFrom: '2025-09-05' }])
     expect(state.invalid).toBe(false)
+  })
+
+  it('a persisted copy of the pristine default table is NOT legacy (upgrade path)', () => {
+    // v0.1.0 persisted its schema default into `prices` — the settings card
+    // must report the SAME effective mode as the host (time-aware builtin),
+    // not "custom legacy".
+    const scope = fakeScope({
+      prices: [
+        { model: 'deepseek-v4-flash', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+        { model: 'deepseek-v4-pro', cacheHitInputPricePerMillion: 0.025, cacheMissInputPricePerMillion: 3, outputPricePerMillion: 6, currency: 'CNY', effectiveFrom: '2026-04-24' },
+        { model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+        { model: 'deepseek-reasoner', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+        { model: '*', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+      ],
+    })
+    const form = new UsageSettingsForm(scope)
+    const state = form.bind().getSnapshot()
+    expect(state.pricingMode).toBe('time-aware')
+    expect(state.pricingBuiltinDefault).toBe(true)
+    // Row ORDER must not flip the verdict.
+    const reordered = fakeScope({
+      prices: [
+        { model: '*', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+        { model: 'deepseek-v4-flash', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' },
+      ],
+    })
+    // Two rows only → not the builtin table → legacy (correct: a trimmed table is a customization).
+    const trimmed = new UsageSettingsForm(reordered).bind().getSnapshot()
+    expect(trimmed.pricingMode).toBe('legacy')
+    expect(trimmed.pricingBuiltinDefault).toBe(false)
+  })
+
+  it('no prices configured at all → builtin time-aware default', () => {
+    const form = new UsageSettingsForm(fakeScope({}))
+    const state = form.bind().getSnapshot()
+    expect(state.pricingMode).toBe('time-aware')
+    expect(state.pricingBuiltinDefault).toBe(true)
   })
 
   it('reads configured pricing schedules as read-only mode info', () => {
@@ -370,6 +408,7 @@ describe('settings form (staged)', () => {
     const form = new UsageSettingsForm(scope)
     const state = form.bind().getSnapshot()
     expect(state.pricingMode).toBe('time-aware')
+    expect(state.pricingBuiltinDefault).toBe(false)
     expect(state.pricingTimezone).toBe('Asia/Shanghai')
     expect(state.pricingSchedules).toEqual([{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windows: [{ id: 'peak', start: '08:00', end: '18:00', bandId: undefined }] }])
     expect(state.invalid).toBe(false)

@@ -14,7 +14,7 @@ import z from 'schemastery'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import type {} from '@deepseek-ai/dsh-session-projection/types'
-import { DEFAULT_PRICE_ENTRIES, assertValidPriceEntry, type PriceEntry } from './core/pricing.ts'
+import { DEFAULT_PRICE_ENTRIES, assertValidPriceEntry, isLegacyBuiltinDefaultPrices, type PriceEntry } from './core/pricing.ts'
 import {
   DEFAULT_SCHEDULES,
   DEEPSEEK_2026_08_17_SCHEDULE,
@@ -124,8 +124,12 @@ export interface ResolvedPricingSet {
   mode: PricingMode
 }
 
-/** Resolve the pricing configuration from a config, validated. */
-function resolvePricingSet(config: Config): ResolvedPricingSet {
+/**
+ * Resolve the pricing configuration from a config, validated.
+ * Exported so the upgrade-compatibility gate can assert the exact
+ * builtin-default vs custom-legacy decision table.
+ */
+export function resolvePricingSet(config: Config): ResolvedPricingSet {
   // New engine first: explicitly configured schedules win over everything.
   if (config.pricingSchedules !== undefined && config.pricingSchedules.length > 0) {
     validatePricingScheduleSet({ schedules: config.pricingSchedules })
@@ -137,6 +141,15 @@ function resolvePricingSet(config: Config): ResolvedPricingSet {
   // built-in 2026-08-17 change only ships with the default configuration.
   if (config.prices !== undefined && config.prices.length > 0) {
     config.prices.forEach(assertValidPriceEntry)
+    // Upgrade compatibility (v0.1.0 → v0.2.0): the old settings schema
+    // PERSISTED its built-in default table into `prices`, so presence alone
+    // is not a customization signal. A structural match against the v0.1.0
+    // built-in table (order-insensitive) is treated as an implicit default
+    // and auto-transitions to DEFAULT_SCHEDULES — upgrading users get the
+    // official 2026-08-17 pricing without manually deleting their prices.
+    if (isLegacyBuiltinDefaultPrices(config.prices)) {
+      return { schedules: DEFAULT_SCHEDULES, mode: 'time-aware' }
+    }
     return { schedules: buildSchedulesFromPriceEntries(config.prices), mode: 'legacy' }
   }
   // No configuration at all: built-in legacy + official 2026-08-17 schedules
@@ -332,6 +345,13 @@ export {
   ALL_DAY_WINDOW_ID,
 } from './core/schedule.ts'
 export type { PriceEntry, TokenRates } from './core/pricing.ts'
+export {
+  DEFAULT_PRICE_ENTRIES,
+  OLD_BUILTIN_DEFAULT_PRICE_ENTRIES,
+  isLegacyBuiltinDefaultPrices,
+  resolvePriceEntry,
+  priceEntriesEqual,
+} from './core/pricing.ts'
 export type {
   PricingSchedule,
   PricingScheduleSet,

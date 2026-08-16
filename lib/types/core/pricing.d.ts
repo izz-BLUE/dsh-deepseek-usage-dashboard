@@ -60,6 +60,29 @@ export interface CostBreakdown {
 export declare function costOfBuckets(rates: TokenRates, buckets: UsageBuckets): CostBreakdown;
 /** True when two price tables are structurally equal (change detection). */
 export declare function priceEntriesEqual(a: readonly PriceEntry[], b: readonly PriceEntry[]): boolean;
+/**
+ * The v0.1.0 built-in default table: five rows INCLUDING the built-in `*`
+ * fallback (the pre-time-aware engine shipped a silent wildcard). This is the
+ * exact table the old settings schema persisted as its default, so a stored
+ * copy is indistinguishable from a customization by mere presence.
+ *
+ * {@link isLegacyBuiltinDefaultPrices} detects that case structurally: a
+ * persisted copy of this table is an IMPLICIT default and must auto-transition
+ * to the built-in DEFAULT_SCHEDULES (legacy + official 2026-08-17), while any
+ * genuinely customized legacy `prices` keeps working as-is.
+ */
+export declare const OLD_BUILTIN_DEFAULT_PRICE_ENTRIES: PriceEntry[];
+/**
+ * Whether a persisted legacy `prices` config is EXACTLY the v0.1.0 built-in
+ * default table (model-keyed, order-insensitive — array order is not a user
+ * customization signal). True means "the user never touched the price table;
+ * the settings system just persisted the schema default", so the upgrade must
+ * NOT keep them on the old flat pricing forever.
+ *
+ * Any difference — a price, a model, a currency, an effectiveFrom, a row
+ * count — makes it an explicit custom config.
+ */
+export declare function isLegacyBuiltinDefaultPrices(prices: readonly PriceEntry[]): boolean;
 /** Validate one configured price entry; throws with a specific message. */
 export declare function assertValidPriceEntry(entry: PriceEntry, index: number): void;
 //# sourceMappingURL=pricing.d.ts.map
