@@ -28,8 +28,16 @@ export interface StepRecord {
     step: number;
     /** Seq of the event that settled the step (stable across re-scans). */
     seq: number;
-    /** Event time (epoch ms) of the settling event. */
+    /** Event time (epoch ms) of the settling event (the settlement time). */
     time: number;
+    /**
+     * Request start time (epoch ms): the `step/start` event time. Pricing is
+     * bound to THIS instant — a request that starts 23:59:59 and settles
+     * 00:00:03 is priced under the schedule effective at 23:59:59. Failed
+     * requests keep the same `requestTime`. Historical rows (pre-migration)
+     * approximate it with `time`.
+     */
+    requestTime: number;
     /** Provider route id captured from the request header. */
     provider: string;
     /** Model id captured from the request header. */
@@ -56,6 +64,7 @@ export interface DeepseekUsageState {
         step: number;
         seq: number;
         time: number;
+        requestTime: number;
         settled: boolean;
     } | null;
 }

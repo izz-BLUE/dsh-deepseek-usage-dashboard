@@ -11,6 +11,8 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from 'schemastery';
 import { type PriceEntry } from './core/pricing.ts';
+import { type PricingSchedule } from './core/schedule.ts';
+import { type PricingMode } from './host/routes.ts';
 /** Services required by the host plugin. */
 export declare const inject: string[];
 /** Settings namespace of this plugin (the settings page edits it). */
@@ -23,11 +25,27 @@ export interface Config {
     providerId?: string;
     /** Balance refresh interval in minutes. */
     balanceRefreshMinutes?: number;
-    /** Per-model price table (editable in the settings page). */
+    /**
+     * Time-aware pricing schedules (the new engine). When present (and
+     * non-empty) this takes precedence over the legacy `prices` table.
+     */
+    pricingSchedules?: PricingSchedule[];
+    /**
+     * Legacy per-model price table. Still fully supported: it normalizes into
+     * an all-day legacy schedule. Ignored while `pricingSchedules` is set.
+     * @deprecated prefer `pricingSchedules`.
+     */
     prices?: PriceEntry[];
 }
 /** Runtime schema for {@link Config}. */
 export declare const Config: z<Config>;
+/** How the pricing config is expressed (drives API/UI provenance). */
+export type { PricingMode } from './host/routes.ts';
+/** The resolved schedule set plus how it was expressed. */
+export interface ResolvedPricingSet {
+    schedules: PricingSchedule[];
+    mode: PricingMode;
+}
 /**
  * Register the usage dashboard host half.
  * @param ctx - host plugin context.
@@ -39,7 +57,9 @@ export { makeUsageRoutes } from './host/routes.ts';
 export { UsageStore } from './core/sqlite-store.ts';
 export { fetchBalance, sanitizeBalanceBody, BALANCE_URL, BALANCE_TIMEOUT_MS } from './core/balance.ts';
 export { mapWireUsage, bucketsFromTokenUsage } from './core/mapping.ts';
-export { dayKeyOf, dayRangeMs, DAY_TIMEZONE } from './core/day.ts';
+export { dayKeyOf, dayRangeMs, DAY_TIMEZONE, minuteOfDayInTimezone, dayRangeMsInTimezone } from './core/day.ts';
 export { resolveDeepseekEndpoint, DEEPSEEK_API_HOST, DEFAULT_DEEPSEEK_PROVIDER } from './host/endpoint.ts';
-export type { PriceEntry } from './core/pricing.ts';
+export { LEGACY_SCHEDULE, aggregateDayCost, buildSchedulesFromPriceEntries, validatePricingScheduleSet, prepareScheduleSet, resolvePricing, normalizeEffectiveFrom, isInsideWindow, OFF_PEAK_BAND_ID, ALL_DAY_WINDOW_ID, } from './core/schedule.ts';
+export type { PriceEntry, TokenRates } from './core/pricing.ts';
+export type { PricingSchedule, PricingScheduleSet, PricingWindow, ModelPricing, ResolvedPricing, DayCostEstimate, } from './core/schedule.ts';
 //# sourceMappingURL=index.d.ts.map

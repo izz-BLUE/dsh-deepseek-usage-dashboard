@@ -41,8 +41,16 @@ export declare class UsageStore {
      * @param dbPath - absolute SQLite file path.
      */
     constructor(dbPath: string);
-    /** Create the schema (idempotent). */
+    /** Create the schema (idempotent) and migrate older databases. */
     private migrate;
+    /**
+     * Migration: databases created before `request_time_ms` existed gain the
+     * column, and historical rows are backfilled with their settlement time —
+     * a best-effort approximation (no real request-start timestamp survives),
+     * while every NEW row always carries the real requestTime. The user's
+     * database is never dropped or rebuilt.
+     */
+    private migrateRequestTime;
     /**
      * Insert step records idempotently (INSERT OR IGNORE on the
      * (session_id, turn, step) primary key). Synchronous by design: the single

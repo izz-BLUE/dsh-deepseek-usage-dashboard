@@ -336,6 +336,17 @@
   font-size: 11px;
 }
 
+.estimateProvenance {
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.estimateUnpriced {
+  color: var(--dsw-alias-label-warning, inherit);
+  font-size: 11px;
+}
+
 .balanceState {
   color: var(--dsw-alias-label-warning, inherit);
   font-size: 12px;

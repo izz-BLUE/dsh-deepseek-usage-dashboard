@@ -31,8 +31,16 @@ export interface StepRecord {
   step: number
   /** Seq of the event that settled the step (stable across re-scans). */
   seq: number
-  /** Event time (epoch ms) of the settling event. */
+  /** Event time (epoch ms) of the settling event (the settlement time). */
   time: number
+  /**
+   * Request start time (epoch ms): the `step/start` event time. Pricing is
+   * bound to THIS instant — a request that starts 23:59:59 and settles
+   * 00:00:03 is priced under the schedule effective at 23:59:59. Failed
+   * requests keep the same `requestTime`. Historical rows (pre-migration)
+   * approximate it with `time`.
+   */
+  requestTime: number
   /** Provider route id captured from the request header. */
   provider: string
   /** Model id captured from the request header. */
@@ -52,7 +60,7 @@ export interface DeepseekUsageState {
   /** Settled step records, in seq order. */
   steps: StepRecord[]
   /** The most recent started step, kept until it settles or its turn ends. */
-  last: { turn: number; step: number; seq: number; time: number; settled: boolean } | null
+  last: { turn: number; step: number; seq: number; time: number; requestTime: number; settled: boolean } | null
 }
 
 /** Initial fold state for an empty log. */
@@ -78,7 +86,7 @@ export function applyDeepseekUsageEvent(state: DeepseekUsageState, event: Sessio
     case 'step/start': {
       return {
         ...state,
-        last: { turn: event.data.turn, step: event.data.step, seq: event.seq, time: event.time, settled: false },
+        last: { turn: event.data.turn, step: event.data.step, seq: event.seq, time: event.time, requestTime: event.time, settled: false },
       }
     }
     case 'assistant/chunk': {
@@ -111,6 +119,7 @@ function failedRecord(state: DeepseekUsageState, last: NonNullable<DeepseekUsage
     step: last.step,
     seq,
     time,
+    requestTime: last.requestTime,
     provider: state.header?.provider ?? '',
     model: state.header?.model ?? '',
     cacheHit: 0,
@@ -142,6 +151,7 @@ function settleStep(
     step,
     seq,
     time,
+    requestTime: state.last.requestTime,
     provider: state.header?.provider ?? '',
     model: state.header?.model ?? '',
     cacheHit: buckets.cacheHitInputTokens,
@@ -169,6 +179,7 @@ export const deepseekUsageProjectionSchema = z.object({
     step: z.number().int().nonnegative(),
     seq: z.number().int().nonnegative(),
     time: z.number().int().nonnegative(),
+    requestTime: z.number().int().nonnegative(),
     provider: z.string(),
     model: z.string(),
     cacheHit: z.number().int().nonnegative(),
@@ -190,6 +201,9 @@ export function createDeepseekUsageProjectionDefinition(): ProjectionDefinition<
     init: initDeepseekUsageState,
     apply: applyDeepseekUsageEvent,
     view: (state: DeepseekUsageState): DeepseekUsageProjection => ({ steps: state.steps }),
-    stateVersion: 1,
+    // v2: StepRecord gained `requestTime` (the step/start event time).
+    // Replay rebuilds it from the persisted events, so old logs fold into
+    // the new shape with no data loss.
+    stateVersion: 2,
   }
 }

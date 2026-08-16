@@ -32,7 +32,7 @@ export interface BalanceSnapshotWire {
   infos: BalanceInfoWire[]
 }
 
-/** One model's price entry. */
+/** One model's price entry (legacy display rows). */
 export interface PriceEntryWire {
   model: string
   cacheHitInputPricePerMillion: number
@@ -42,19 +42,50 @@ export interface PriceEntryWire {
   effectiveFrom: string
 }
 
+/** One schedule's identity served to the browser. */
+export interface PriceScheduleWire {
+  id: string
+  effectiveFrom: string
+  currency: string
+  windowCount: number
+}
+
+/** How the pricing config is expressed. */
+export type PricingModeWire = 'legacy' | 'schedules'
+
+/** One day's cost estimate with explicit priced/unpriced accounting. */
+export interface DayCostEstimateWire {
+  /** Total estimated cost as a decimal string in `currency` units. */
+  total: string
+  /** Total estimated cost in integer micro-units (1e-6 of `currency`). */
+  totalMicro: string
+  currency: string
+  /** Rows priced under a schedule (failed rows never count). */
+  pricedRequestCount: number
+  /** Rows with usage that could not be priced. */
+  unpricedRequestCount: number
+  /** Tokens of the unpriced rows — NEVER folded into `total`. */
+  unpriced: {
+    cacheHitInputTokens: number
+    cacheMissInputTokens: number
+    outputTokens: number
+  }
+  /** Schedule ids that priced this day (several when a day spans schedules). */
+  scheduleIdsUsed: string[]
+}
+
 /** The full stats payload. */
 export interface UsageStatsWire {
   daily: DailyStatsWire
   trend: DailyStatsWire[]
-  estimatedCost: {
-    total: string
-    totalMicro: string
-    currency: string
-  }
+  estimatedCost: DayCostEstimateWire
   prices: {
     version: number
     updatedAt: string | null
     entries: PriceEntryWire[]
+    mode: PricingModeWire
+    timezone: string
+    schedules: PriceScheduleWire[]
   }
   balance: BalanceSnapshotWire | null
   balanceOmitted: boolean

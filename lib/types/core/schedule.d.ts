@@ -1,0 +1,186 @@
+/**
+ * Time-aware pricing schedules (the Phase-1 pricing engine).
+ *
+ * A {@link PricingSchedule} is a versioned price table bound to an explicit
+ * effective instant, priced in ONE currency, split into daily time bands
+ * (windows). Every usage row is priced by the schedule that was effective AT
+ * THE REQUEST TIME:
+ *
+ *   schedule.effectiveFrom <= requestTime   (inclusive boundary)
+ *
+ * so a later price change never reprices history, and a request that started
+ * before a midnight boundary is priced under the OLD schedule even when its
+ * usage settles after the boundary.
+ *
+ * Band resolution: a request's wall clock (in the schedule's own timezone,
+ * never the system local zone) is matched against the schedule's windows —
+ * `start` inclusive, `end` exclusive. Unmatched minutes fall into the
+ * implicit `off-peak` band, so a schedule may declare only its peak windows.
+ * A window with `start === end` covers the whole day (all-day schedule).
+ *
+ * Unknown models are a NORMAL, expressible state: without an explicit user
+ * configured `*` (wildcard) model entry the resolver returns `unpriced`
+ * instead of inventing a price, and the dashboard shows the estimate with a
+ * "partly unpriced" marker rather than a false exact number.
+ *
+ * The 2026-08-17 DeepSeek price change is NOT part of this module: only the
+ * legacy 2026-04-24 table ships here (as {@link LEGACY_SCHEDULE}), preserving
+ * current behavior. New schedules are added later, without touching the
+ * resolver.
+ */
+import type { PriceEntry, TokenRates } from './pricing.ts';
+/**
+ * One daily time band. `start` inclusive, `end` exclusive, both in the
+ * schedule's local wall clock ("HH:MM"; `end` may be "24:00"). A window
+ * whose `start === end` covers the full day. `end < start` crosses midnight.
+ */
+export interface PricingWindow {
+    id: string;
+    /** Local wall-clock "HH:MM", inclusive. */
+    start: string;
+    /** Local wall-clock "HH:MM" or "24:00", exclusive. */
+    end: string;
+}
+/** One model's rates inside a schedule; `*` is an EXPLICIT user wildcard. */
+export interface ModelPricing {
+    /** Exact model id, or `*` when the user explicitly configured a fallback. */
+    model: string;
+    /** Rates by band id (window ids, or the implicit `off-peak` band). */
+    ratesByBand: Record<string, TokenRates>;
+}
+/**
+ * One versioned price table. `effectiveFrom` is an ISO 8601 instant with
+ * offset (e.g. `2026-08-17T00:00:00+08:00`); legacy `YYYY-MM-DD` values are
+ * normalized to midnight in the schedule's timezone on load.
+ */
+export interface PricingSchedule {
+    id: string;
+    /** ISO 8601 instant with offset — the inclusive effectiveness boundary. */
+    effectiveFrom: string;
+    /** IANA timezone id the windows and `effectiveFrom` are expressed in. */
+    timezone: string;
+    /** ISO 4217 currency code — one schedule set shares ONE currency. */
+    currency: string;
+    windows: PricingWindow[];
+    models: ModelPricing[];
+}
+/** The full pricing configuration (one currency across all schedules). */
+export interface PricingScheduleSet {
+    schedules: PricingSchedule[];
+}
+/** The implicit band for minutes not covered by any declared window. */
+export declare const OFF_PEAK_BAND_ID = "off-peak";
+/** A window whose `start === end` covers the full day (all-day schedule). */
+export declare const ALL_DAY_WINDOW_ID = "all-day";
+/** The default timezone for schedules and legacy normalization. */
+export declare const DEFAULT_SCHEDULE_TIMEZONE = "Asia/Shanghai";
+/** Whether one minute-of-day falls inside one window (start inclusive, end exclusive). */
+export declare function isInsideWindow(minuteOfDay: number, window: PricingWindow): boolean;
+/** The band id covering one minute of day (a window id, or implicit off-peak). */
+export declare function bandForMinute(schedule: PricingSchedule, minuteOfDay: number): {
+    bandId: string;
+    window: PricingWindow | null;
+};
+/**
+ * Normalize an `effectiveFrom` value into an ISO 8601 instant with offset.
+ * A legacy `YYYY-MM-DD` becomes midnight in `timezone` (e.g.
+ * `2026-04-24T00:00:00+08:00`), so existing configs keep working unchanged.
+ */
+export declare function normalizeEffectiveFrom(value: string, timezone: string): string;
+/** The epoch-millisecond instant a schedule becomes effective (inclusive). */
+export declare function effectiveFromEpochMs(schedule: PricingSchedule): number;
+/** A schedule prepared for repeated resolution (effective instant precomputed). */
+export interface PreparedSchedule {
+    schedule: PricingSchedule;
+    /** Epoch ms of the inclusive effectiveness boundary. */
+    effectiveMs: number;
+}
+/**
+ * Sort and precompute the effective instants of a schedule list. The
+ * resolved schedule for a request is the one with the largest
+ * `effectiveFrom <= requestTime` — later schedules never reprice earlier
+ * requests, because the list is only ever scanned up to the request time.
+ */
+export declare function prepareScheduleSet(schedules: readonly PricingSchedule[]): PreparedSchedule[];
+/** The outcome of pricing one usage row. */
+export type ResolvedPricing = {
+    status: 'priced';
+    scheduleId: string;
+    effectiveFrom: string;
+    timezone: string;
+    bandId: string;
+    model: string;
+    currency: string;
+    rates: TokenRates;
+} | {
+    status: 'unpriced';
+    model: string;
+    reason: 'no-schedule' | 'unknown-model' | 'no-rates-for-band';
+};
+/**
+ * Resolve the pricing of one model at one request instant.
+ *
+ * Selection: schedules with `effectiveFrom <= requestTime`, taking the
+ * LATEST one; the request's wall clock in the schedule's timezone picks the
+ * band; then an exact model match, then an EXPLICIT user `*` wildcard. Any
+ * other outcome is `unpriced` — never thrown, never a silent fake number.
+ */
+export declare function resolvePricing(prepared: readonly PreparedSchedule[], model: string, requestTimeMs: number): ResolvedPricing;
+/** Validate the whole schedule set; throws with a specific message. */
+export declare function validatePricingScheduleSet(set: PricingScheduleSet): void;
+/**
+ * Build one all-day schedule per `effectiveFrom` group from a legacy
+ * `PriceEntry[]` config (backward compatibility: existing `prices` keep
+ * working, including user-configured `*` fallback rows).
+ */
+export declare function buildSchedulesFromPriceEntries(entries: readonly PriceEntry[]): PricingSchedule[];
+/**
+ * The built-in legacy schedule: the repository's current 2026-04-24 DeepSeek
+ * table, migrated VERBATIM (only the numbers already present in this repo —
+ * no new price is invented here). It deliberately has NO `*` fallback: a
+ * built-in default must never silently price an unknown model.
+ */
+export declare const LEGACY_SCHEDULE: PricingSchedule;
+/** Structural equality of two schedule sets (pricing-config change detection). */
+export declare function pricingSetsEqual(a: PricingScheduleSet, b: PricingScheduleSet): boolean;
+/** One row priced by the aggregate: request time falls back to settlement time. */
+export interface PricableRow {
+    model: string;
+    failed: boolean;
+    cacheHit: number;
+    cacheMiss: number;
+    output: number;
+    /** Settlement time (epoch ms) — the existing `time` field, untouched. */
+    time: number;
+    /** Request start time (epoch ms); historical rows use the settlement approximation. */
+    requestTime: number;
+}
+/** One day's cost estimate with explicit priced/unpriced accounting. */
+export interface DayCostEstimate {
+    /** Total estimated cost as a decimal string in `currency` units. */
+    total: string;
+    /** Total estimated cost in integer micro-units (1e-6 of `currency`). */
+    totalMicro: string;
+    currency: string;
+    /** Rows priced under a schedule (failed rows never count). */
+    pricedRequestCount: number;
+    /** Rows with usage that could not be priced (unknown model / no rates). */
+    unpricedRequestCount: number;
+    /** Tokens of the unpriced rows — NEVER folded into `total`. */
+    unpriced: {
+        cacheHitInputTokens: number;
+        cacheMissInputTokens: number;
+        outputTokens: number;
+    };
+    /** The schedule ids that priced this day (empty while everything is unpriced). */
+    scheduleIdsUsed: string[];
+}
+/** The zero estimate (no store / no rows yet). */
+export declare function emptyDayCostEstimate(currency?: string): DayCostEstimate;
+/**
+ * Aggregate one day's rows into a cost estimate. Every row is priced at its
+ * OWN request time against the schedule set — never "today's tokens × the
+ * current price". Failed rows carry no usage and are ignored entirely.
+ */
+export declare function aggregateDayCost(schedules: readonly PricingSchedule[], rows: readonly PricableRow[]): DayCostEstimate;
+//# sourceMappingURL=schedule.d.ts.map

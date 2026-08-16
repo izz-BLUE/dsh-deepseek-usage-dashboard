@@ -41,11 +41,24 @@ export function createLocalSnapshotStore<T>(initial: T): LocalSnapshotStore<T> {
   }
 }
 
+/** One pricing schedule as configured in the settings document (read-only here). */
+export interface PricingScheduleConfigWire {
+  id: string
+  effectiveFrom: string
+  timezone?: string
+  currency?: string
+  windows: Array<{ id: string; start: string; end: string }>
+  models: Array<{ model: string; ratesByBand: Record<string, unknown> }>
+}
+
 /** The settings section this card edits (mirror of the host schema). */
 export interface UsageSettings {
   enabled?: boolean
   providerId?: string
   balanceRefreshMinutes?: number
+  /** Time-aware pricing schedules (read-only here; editor ships later). */
+  pricingSchedules?: PricingScheduleConfigWire[]
+  /** Legacy per-model price table (still fully editable). */
   prices?: PriceEntryWire[]
 }
 
@@ -75,6 +88,12 @@ export interface UsageSettingsFormState extends CardShell {
   providerId: string
   /** Draft text for the refresh interval. */
   balanceRefreshMinutes: string
+  /** How pricing is expressed in the effective config. */
+  pricingMode: 'legacy' | 'schedules'
+  /** The schedules' timezone (also the legacy normalization zone). */
+  pricingTimezone: string
+  /** The configured schedule identities (read-only display). */
+  pricingSchedules: Array<{ id: string; effectiveFrom: string; currency: string }>
   /** Draft price rows. */
   prices: PriceEntryWire[]
   /** Whether the prices array is user-overridden. */
@@ -186,6 +205,7 @@ export class UsageSettingsForm {
     const refresh = this.fieldText(snapshot, 'balanceRefreshMinutes', value => typeof value === 'number' ? String(value) : '')
     const prices = this.draftPrices(snapshot, section)
     const overridden = this.userHas(snapshot, 'prices')
+    const schedules = Array.isArray(section.pricingSchedules) ? section.pricingSchedules : []
     return {
       available: snapshot.status !== 'loading',
       exposed: snapshot.status === 'ready',
@@ -197,6 +217,9 @@ export class UsageSettingsForm {
       enabled,
       providerId,
       balanceRefreshMinutes: refresh,
+      pricingMode: schedules.length > 0 ? 'schedules' : 'legacy',
+      pricingTimezone: schedules[0]?.timezone ?? 'Asia/Shanghai',
+      pricingSchedules: schedules.map(schedule => ({ id: schedule.id, effectiveFrom: schedule.effectiveFrom, currency: schedule.currency ?? 'CNY' })),
       prices,
       pricesOverridden: overridden,
     }

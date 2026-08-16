@@ -213,6 +213,20 @@ function BalanceDetail(props: { balance: BalanceSnapshotWire; stale: boolean; t:
   )
 }
 
+/** The pricing provenance line under the estimate (schedule aware). */
+function pricingProvenance(data: NonNullable<UsageStoreSnapshot['data']>, t: typeof tt): string {
+  const estimate = data.estimatedCost
+  if (data.prices.mode === 'legacy') {
+    const date = data.prices.entries[0]?.effectiveFrom ?? '--'
+    return t('panel.pricingModeLegacy', { date })
+  }
+  if (estimate.scheduleIdsUsed.length > 1) return t('panel.pricingMultiple')
+  const scheduleId = estimate.scheduleIdsUsed[0] ?? data.prices.schedules[0]?.id
+  const schedule = data.prices.schedules.find(item => item.id === scheduleId)
+  const date = schedule?.effectiveFrom.slice(0, 10) ?? '--'
+  return t('panel.pricingModeSchedules', { date })
+}
+
 /**
  * Render the usage dashboard.
  * @param props - panel controller and the shared stats store.
@@ -333,7 +347,15 @@ export function DashboardView(props: { snapshot: UsageStoreSnapshot; onRefresh: 
                   <span className={css.estimateValue}>
                     {formatAmount(data.estimatedCost.total, data.estimatedCost.currency)}
                   </span>
+                  <span className={css.estimateProvenance}>{pricingProvenance(data, t)}</span>
                   <span className={css.estimateNote}>{t('panel.estimateNote')}</span>
+                  {data.estimatedCost.unpricedRequestCount > 0
+                    ? (
+                      <span className={css.estimateUnpriced} role="status">
+                        {t('panel.unpriced')} · {t('panel.unpricedDetail', { count: data.estimatedCost.unpricedRequestCount })}
+                      </span>
+                    )
+                    : null}
                   <span className={css.estimateMeta}>
                     {t('panel.priceVersion')}: {data.prices.version}
                     {data.prices.updatedAt !== null ? ` · ${t('panel.priceUpdated')}: ${new Date(data.prices.updatedAt).toLocaleString()}` : ''}

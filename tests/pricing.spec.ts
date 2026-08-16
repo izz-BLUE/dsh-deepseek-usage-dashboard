@@ -14,15 +14,24 @@ describe('resolvePriceEntry', () => {
     expect(entry.cacheHitInputPricePerMillion).toBe(0.02)
   })
 
-  it('falls back to the * entry for unknown models', () => {
-    const entry = resolvePriceEntry(DEFAULT_PRICE_ENTRIES, 'future-unknown-model')
-    expect(entry.model).toBe('*')
+  it('the built-in default ships NO * fallback: unknown models throw instead of silently pricing', () => {
+    // Phase 1 contract: without an explicit user wildcard, an unknown model
+    // is UNPRICED — the legacy resolver surfaces that as an error rather
+    // than a guessed Flash price (the time-aware resolver never throws).
+    expect(() => resolvePriceEntry(DEFAULT_PRICE_ENTRIES, 'future-unknown-model')).toThrow(/no price entry/)
+    expect(DEFAULT_PRICE_ENTRIES.some(entry => entry.model === '*')).toBe(false)
   })
 
   it('uses the pro table for deepseek-v4-pro', () => {
     const entry = resolvePriceEntry(DEFAULT_PRICE_ENTRIES, 'deepseek-v4-pro')
     expect(entry.cacheMissInputPricePerMillion).toBe(3)
     expect(entry.outputPricePerMillion).toBe(6)
+  })
+
+  it('an explicit user wildcard still falls back for unknown models', () => {
+    const withWildcard = [...DEFAULT_PRICE_ENTRIES, { model: '*', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' }]
+    const entry = resolvePriceEntry(withWildcard, 'future-unknown-model')
+    expect(entry.model).toBe('*')
   })
 
   it('throws when neither the model nor a fallback exists', () => {
@@ -69,7 +78,7 @@ describe('costOfBuckets', () => {
   })
 
   it('costs nothing for zero tokens', () => {
-    const cost = costOfBuckets(resolvePriceEntry(DEFAULT_PRICE_ENTRIES, '*'), zeroBuckets())
+    const cost = costOfBuckets(resolvePriceEntry(DEFAULT_PRICE_ENTRIES, 'deepseek-v4-flash'), zeroBuckets())
     expect(cost.total).toBe(0n)
   })
 })

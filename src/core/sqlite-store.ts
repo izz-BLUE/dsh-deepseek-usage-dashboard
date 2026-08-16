@@ -60,7 +60,7 @@ export class UsageStore {
     this.migrate()
   }
 
-  /** Create the schema (idempotent). */
+  /** Create the schema (idempotent) and migrate older databases. */
   private migrate(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS usage_rows (
@@ -69,6 +69,7 @@ export class UsageStore {
         step INTEGER NOT NULL,
         seq INTEGER NOT NULL,
         time_ms INTEGER NOT NULL,
+        request_time_ms INTEGER,
         model TEXT NOT NULL,
         provider TEXT NOT NULL DEFAULT '',
         cache_hit INTEGER NOT NULL DEFAULT 0,
@@ -90,6 +91,22 @@ export class UsageStore {
         status TEXT NOT NULL
       );
     `)
+    this.migrateRequestTime()
+  }
+
+  /**
+   * Migration: databases created before `request_time_ms` existed gain the
+   * column, and historical rows are backfilled with their settlement time —
+   * a best-effort approximation (no real request-start timestamp survives),
+   * while every NEW row always carries the real requestTime. The user's
+   * database is never dropped or rebuilt.
+   */
+  private migrateRequestTime(): void {
+    const columns = this.db.prepare('PRAGMA table_info(usage_rows)').all() as Array<{ name: string }>
+    if (!columns.some(column => column.name === 'request_time_ms')) {
+      this.db.exec('ALTER TABLE usage_rows ADD COLUMN request_time_ms INTEGER')
+    }
+    this.db.exec('UPDATE usage_rows SET request_time_ms = time_ms WHERE request_time_ms IS NULL')
   }
 
   /**
@@ -104,8 +121,8 @@ export class UsageStore {
     if (rows.length === 0) return { inserted: 0, ignored: 0 }
     const statement = this.db.prepare(`
       INSERT OR IGNORE INTO usage_rows
-        (session_id, turn, step, seq, time_ms, model, provider, cache_hit, cache_miss, output, reasoning, failed)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (session_id, turn, step, seq, time_ms, request_time_ms, model, provider, cache_hit, cache_miss, output, reasoning, failed)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     let inserted = 0
     for (const row of rows) {
@@ -115,6 +132,7 @@ export class UsageStore {
         row.step,
         row.seq,
         row.time,
+        row.requestTime,
         row.model,
         row.provider,
         row.cacheHit,
@@ -244,6 +262,9 @@ function rowFromSql(row: Record<string, unknown>): UsageRow {
     step: Number(row.step),
     seq: Number(row.seq),
     time: Number(row.time_ms),
+    // Historical rows (pre-migration) have request_time_ms backfilled with
+    // time_ms; a NULL is never expected after migration, but degrade safely.
+    requestTime: Number(row.request_time_ms ?? row.time_ms),
     model: String(row.model),
     provider: String(row.provider),
     cacheHit: Number(row.cache_hit),

@@ -16,6 +16,7 @@ import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import type { DailyStats } from '../core/stats.ts'
 import type { BalanceSnapshot, BalanceErrorCode } from '../core/balance.ts'
 import type { PriceEntry } from '../core/pricing.ts'
+import type { DayCostEstimate } from '../core/schedule.ts'
 import type { UsageStore } from '../core/sqlite-store.ts'
 import type { BalanceStatus, BalanceWatch } from './balance-service.ts'
 import type { DeepseekEndpointFacts } from './endpoint.ts'
@@ -26,20 +27,29 @@ export const MAX_BODY_BYTES = 8 * 1024
 /** Route prefix owned by this plugin. */
 export const USAGE_API_PREFIX = '/api/deepseek-usage'
 
-/** One day's cost estimate (decimal strings, never floats on the wire). */
-export interface DayCostEstimate {
-  /** Total estimated cost as a decimal string in `currency` units. */
-  total: string
-  /** Total estimated cost in integer micro-units (1e-6 of `currency`). */
-  totalMicro: string
+/** How the pricing config is expressed — drives the API/UI provenance. */
+export type PricingMode = 'legacy' | 'schedules'
+
+/** One schedule's identity served to the browser (never the raw rates). */
+export interface PriceScheduleMeta {
+  id: string
+  effectiveFrom: string
   currency: string
+  windowCount: number
 }
 
-/** The price table metadata shown next to every estimate. */
+/** The price metadata shown next to every estimate. */
 export interface PriceTableMeta {
   version: number
   updatedAt: string | null
+  /** Legacy `prices` display rows (empty while time-aware schedules are used). */
   entries: PriceEntry[]
+  /** How the pricing config is expressed. */
+  mode: PricingMode
+  /** The timezone every schedule's windows are computed in. */
+  timezone: string
+  /** The effective schedule identities (one day may span several). */
+  schedules: PriceScheduleMeta[]
 }
 
 /** The sanitized stats payload served to the browser. */

@@ -181,6 +181,27 @@ export function UsageSettingsCard(props: UsageSettingsCardProps) {
         onEdit={props.editRefreshMinutes}
         placeholder="10"
       />
+      <div className={css.field}>
+        <span className={css.label}>{t('settings.pricingMode')}</span>
+        <p className={css.hint}>
+          {state.pricingMode === 'schedules' ? t('settings.pricingModeSchedules') : t('settings.pricingModeLegacy')}
+        </p>
+        {state.pricingMode === 'schedules'
+          ? (
+            <>
+              <p className={css.hint}>{t('settings.pricingTimezone')}: {state.pricingTimezone}</p>
+              <ul className={css.scheduleList}>
+                {state.pricingSchedules.map(schedule => (
+                  <li key={schedule.id}>
+                    {schedule.id} · {schedule.effectiveFrom} · {schedule.currency}
+                  </li>
+                ))}
+              </ul>
+              <p className={css.hint} role="status">{t('settings.pricingSchedulesHint')}</p>
+            </>
+          )
+          : null}
+      </div>
       <div className={css.pricesHead}>
         <span className={css.label}>{t('settings.prices')}</span>
         {state.pricesOverridden

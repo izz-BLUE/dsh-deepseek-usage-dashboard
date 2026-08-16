@@ -23,11 +23,30 @@ export interface LocalSnapshotStore<T> {
 }
 /** Create a minimal snapshot store. */
 export declare function createLocalSnapshotStore<T>(initial: T): LocalSnapshotStore<T>;
+/** One pricing schedule as configured in the settings document (read-only here). */
+export interface PricingScheduleConfigWire {
+    id: string;
+    effectiveFrom: string;
+    timezone?: string;
+    currency?: string;
+    windows: Array<{
+        id: string;
+        start: string;
+        end: string;
+    }>;
+    models: Array<{
+        model: string;
+        ratesByBand: Record<string, unknown>;
+    }>;
+}
 /** The settings section this card edits (mirror of the host schema). */
 export interface UsageSettings {
     enabled?: boolean;
     providerId?: string;
     balanceRefreshMinutes?: number;
+    /** Time-aware pricing schedules (read-only here; editor ships later). */
+    pricingSchedules?: PricingScheduleConfigWire[];
+    /** Legacy per-model price table (still fully editable). */
     prices?: PriceEntryWire[];
 }
 /** Form state every plugin settings card shares. */
@@ -55,6 +74,16 @@ export interface UsageSettingsFormState extends CardShell {
     providerId: string;
     /** Draft text for the refresh interval. */
     balanceRefreshMinutes: string;
+    /** How pricing is expressed in the effective config. */
+    pricingMode: 'legacy' | 'schedules';
+    /** The schedules' timezone (also the legacy normalization zone). */
+    pricingTimezone: string;
+    /** The configured schedule identities (read-only display). */
+    pricingSchedules: Array<{
+        id: string;
+        effectiveFrom: string;
+        currency: string;
+    }>;
     /** Draft price rows. */
     prices: PriceEntryWire[];
     /** Whether the prices array is user-overridden. */

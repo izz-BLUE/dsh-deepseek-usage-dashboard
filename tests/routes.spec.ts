@@ -68,8 +68,23 @@ function makeDeps(balance: FakeBalanceWatch = new FakeBalanceWatch()): UsageRout
     } as never,
     balance: balance as unknown as BalanceWatch,
     endpoint: () => ENDPOINT,
-    prices: () => ({ version: 2, updatedAt: '2026-01-01T00:00:00.000Z', entries: PRICES }),
-    estimateDayCost: () => ({ total: '1.234567', totalMicro: '1234567', currency: 'CNY' }),
+    prices: () => ({
+      version: 2,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      entries: PRICES,
+      mode: 'legacy',
+      timezone: 'Asia/Shanghai',
+      schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
+    }),
+    estimateDayCost: () => ({
+      total: '1.234567',
+      totalMicro: '1234567',
+      currency: 'CNY',
+      pricedRequestCount: 1,
+      unpricedRequestCount: 1,
+      unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
+      scheduleIdsUsed: ['legacy-2026-04-24'],
+    }),
     trendDayKeys: () => ['2026-01-01', '2026-01-02', '2026-01-03', '2026-01-04', '2026-01-05', '2026-01-06', '2026-01-07'],
     now: () => now,
   }
@@ -269,6 +284,55 @@ describe('method / content-type / body-size enforcement', () => {
     expect(balance.refreshed).toBe(1)
     const payload = await response.json() as Record<string, unknown>
     expect(payload.balance).toEqual(balance.status.snapshot)
+  })
+})
+
+describe('pricing provenance and unpriced state', () => {
+  it('serializes pricing provenance (mode / timezone / schedules)', async () => {
+    const deps = makeDeps()
+    const server = await serve(makeUsageRoutes(deps))
+    servers.push(server)
+    const response = await fetch(`${server.base}/api/deepseek-usage/stats`, { headers: { Origin: server.base } })
+    expect(response.status).toBe(200)
+    const payload = await response.json() as Record<string, unknown>
+    const prices = payload.prices as Record<string, unknown>
+    expect(prices.mode).toBe('legacy')
+    expect(prices.timezone).toBe('Asia/Shanghai')
+    expect(prices.schedules).toEqual([{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }])
+    // Legacy display rows stay available (API compatibility).
+    expect(prices.entries).toEqual(PRICES)
+  })
+
+  it('serializes the unpriced state explicitly (never folded into total)', async () => {
+    const deps = makeDeps()
+    const server = await serve(makeUsageRoutes(deps))
+    servers.push(server)
+    const response = await fetch(`${server.base}/api/deepseek-usage/stats`, { headers: { Origin: server.base } })
+    const payload = await response.json() as Record<string, unknown>
+    expect(payload.estimatedCost).toEqual({
+      total: '1.234567',
+      totalMicro: '1234567',
+      currency: 'CNY',
+      pricedRequestCount: 1,
+      unpricedRequestCount: 1,
+      unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
+      scheduleIdsUsed: ['legacy-2026-04-24'],
+    })
+  })
+
+  it('keeps the legacy estimate fields intact (old clients still parse)', async () => {
+    const deps = makeDeps()
+    const server = await serve(makeUsageRoutes(deps))
+    servers.push(server)
+    const response = await fetch(`${server.base}/api/deepseek-usage/stats`, { headers: { Origin: server.base } })
+    const payload = await response.json() as Record<string, unknown>
+    const estimate = payload.estimatedCost as Record<string, unknown>
+    const prices = payload.prices as Record<string, unknown>
+    expect(estimate.total).toBe('1.234567')
+    expect(estimate.totalMicro).toBe('1234567')
+    expect(estimate.currency).toBe('CNY')
+    expect(prices.version).toBe(2)
+    expect(prices.updatedAt).toBe('2026-01-01T00:00:00.000Z')
   })
 })
 

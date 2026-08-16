@@ -7,6 +7,7 @@
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { UsageStore, type UsageRow } from '../src/core/sqlite-store.ts'
 
@@ -18,6 +19,7 @@ function row(partial: Partial<UsageRow> & { sessionId: string; turn: number; ste
   return {
     seq: 1,
     time: Date.UTC(2026, 0, 1, 8, 0, 0),
+    requestTime: Date.UTC(2026, 0, 1, 8, 0, 0),
     model: 'deepseek-chat',
     provider: 'deepseek-official',
     cacheHit: 0,
@@ -127,6 +129,67 @@ describe('meta and balance persistence', () => {
     const stored = store.loadBalance()
     expect(stored?.snapshot).toEqual(snapshot)
     expect(stored?.fetchedAtMs).toBe(1234567)
+  })
+})
+
+describe('request_time_ms (time-aware pricing column)', () => {
+  it('creates request_time_ms in a fresh schema and round-trips requestTime', () => {
+    const inserted = row({ sessionId: 's1', turn: 0, step: 0, time: 1000, requestTime: 900, output: 5 })
+    expect(store.insertRows([inserted]).inserted).toBe(1)
+    const stored = store.allRows()[0]!
+    expect(stored.requestTime).toBe(900)
+    expect(stored.time).toBe(1000)
+  })
+
+  it('migrates an old-schema database: adds the column and backfills request_time_ms = time_ms', () => {
+    const dbPath = join(dir, 'usage.db')
+    store.close()
+    // Build a pre-migration database by hand (the column does not exist).
+    const old = new UsageStore(dbPath)
+    old.metaSet('probe', 'old-schema')
+    old.close()
+    const raw = new DatabaseSync(dbPath)
+    raw.exec(`
+      DROP TABLE usage_rows;
+      CREATE TABLE usage_rows (
+        session_id TEXT NOT NULL,
+        turn INTEGER NOT NULL,
+        step INTEGER NOT NULL,
+        seq INTEGER NOT NULL,
+        time_ms INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        provider TEXT NOT NULL DEFAULT '',
+        cache_hit INTEGER NOT NULL DEFAULT 0,
+        cache_miss INTEGER NOT NULL DEFAULT 0,
+        output INTEGER NOT NULL DEFAULT 0,
+        reasoning INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (session_id, turn, step)
+      );
+      INSERT INTO usage_rows (session_id, turn, step, seq, time_ms, model, provider, cache_hit, cache_miss, output, reasoning, failed)
+      VALUES ('old-s1', 0, 0, 1, 1234567, 'deepseek-chat', 'deepseek-official', 1, 2, 3, 4, 0),
+             ('old-s1', 0, 1, 2, 7654321, 'deepseek-chat', 'deepseek-official', 0, 0, 0, 0, 1);
+    `)
+    raw.close()
+    // Reopening with the current store migrates in place (no data loss).
+    store = new UsageStore(dbPath)
+    expect(store.rowCount()).toBe(2)
+    const rows = store.allRows()
+    expect(rows.map(item => item.requestTime).sort()).toEqual([1234567, 7654321]) // backfilled from time_ms
+    expect(rows[0]!.time).toBe(1234567)
+    expect(rows[1]!.failed).toBe(true)
+    // New rows written after migration carry their real requestTime.
+    store.insertRows([row({ sessionId: 'old-s1', turn: 1, step: 0, time: 2000, requestTime: 1500 })])
+    expect(store.allRows().find(item => item.turn === 1)!.requestTime).toBe(1500)
+    // meta survived the migration.
+    expect(store.metaGet('probe')).toBe('old-schema')
+  })
+
+  it('keeps idempotency intact with requestTime (first write wins)', () => {
+    const base = row({ sessionId: 's1', turn: 0, step: 0, requestTime: 900, output: 20 })
+    expect(store.insertRows([base]).inserted).toBe(1)
+    expect(store.insertRows([{ ...base, requestTime: 950, output: 999 }])).toEqual({ inserted: 0, ignored: 1 })
+    expect(store.allRows()[0]!.requestTime).toBe(900)
   })
 })
 

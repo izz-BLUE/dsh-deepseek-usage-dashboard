@@ -21,7 +21,7 @@
 - **只统计真实的 DeepSeek 流量**：provider 路由为 `deepseek-official`（可配置）**且**有效 base URL 主机为 `api.deepseek.com`——自定义网关不会污染统计。
 - **流式安全**：只有最终 usage 到达才落库；流式估算值从不写入每日精确统计。
 - **幂等 + 持久化**：SQLite（Node 24 运行时内置 `node:sqlite`），`UNIQUE (session_id, turn, step)` 约束 + `INSERT OR IGNORE`——投影重放、流式 usage 重复到达、重启后重扫、重复提交均不会重复累计；跨重启保留；损坏文件自动移出并重建。
-- **Decimal 金额**：费用以整数最小单位（1e-6 币种单位）BigInt 累计，禁止浮点直接累计。价格**按模型**配置（`cacheHitInputPricePerMillion` / `cacheMissInputPricePerMillion` / `outputPricePerMillion` / `currency` / `effectiveFrom`），支持 `*` 兜底，设置页可改；界面显示价格版本与更新时间，所有金额明确标注为「估算费用，非官方账单」。
+- **Decimal 金额**：费用以整数最小单位（1e-6 币种单位）BigInt 累计，禁止浮点直接累计。**时间感知计价**：请求按开始时间选择生效的 PricingSchedule（`effectiveFrom <= requestTime`，含边界），支持分时段 band（如 peak/off-peak 窗口，start 含 / end 不含、可跨午夜）；历史请求不会被后来新增的价格计划重算。未知模型明确记为「未计价」（不静默套用兜底价），显式配置 `*` 兜底仍可用；界面显示价格版本、更新时间与计价来源，所有金额明确标注为「估算费用，非官方账单」。
 - **余额**：仅 Host 端 `GET https://api.deepseek.com/user/balance`（base URL 固定、10 秒超时、401/402/429/5xx/超时/畸形响应分别处理）；失败时保留最后一次成功数据并显示 stale 状态；支持手动刷新。API Key 绝不进入浏览器、日志或请求参数。
 - **Host HTTP 接口**：`/api/deepseek-usage/stats` 与 `/api/deepseek-usage/refresh`，复用 DSH 浏览器信任篱笆（Host / Origin / Sec-Fetch-Site 校验，按官方 api-request-trust 语义实现）+ loopback 套接字校验；余额明细仅限 loopback；POST 要求 `application/json`；限制请求体大小；不提供任意 URL/文件/命令代理。
 - **Web UI**：侧边栏「API 用量」入口；仪表盘（今日卡片、缓存命中/未命中对比条、命中率、今日估算费用、余额（总额/赠送/充值）、最近 7 天趋势、最后更新时间、数据来源说明）；`conversation.composer.dock` 紧凑统计行（`今日：命中 X · 未命中 X · 输出 X · 估算 ¥X · 余额 ¥X`）；完整中英文 locale；仅使用 DSH CSS Token（适配亮/暗主题）；不使用 `dangerouslySetInnerHTML`。
@@ -59,7 +59,34 @@ pnpm build
 | `enabled` | `true` | 总开关 |
 | `providerId` | `deepseek-official` | 被统计为 DeepSeek 的 provider 路由 |
 | `balanceRefreshMinutes` | `10` | 余额刷新间隔（分钟） |
-| `prices` | 见 `DEFAULT_PRICE_ENTRIES` | 分模型价格表 |
+| `pricingSchedules` | — | 分时段价格计划（time-aware pricing，优先于 `prices`） |
+| `prices` | 见 `DEFAULT_PRICE_ENTRIES` | 旧版分模型价格表（legacy，仅在未配置 `pricingSchedules` 时生效） |
+
+### 计价（Pricing）
+
+- **时间感知**：每个请求按其**请求开始时间**（`step/start`）所属的 schedule 计价；`schedule.effectiveFrom <= requestTime` 生效（含边界）。价格变更只影响生效时刻之后的请求，**历史请求不会被新价格重算**。
+- **分时段**：schedule 可按本地时间窗口（如 `08:00 → 18:00`，start 含 / end 不含；`end < start` 跨午夜；`start === end` 为全天）划分 band；未落入任何窗口的时间自动归入隐式 `off-peak` band。
+- **未知模型 = 未计价（UNPRICED）**：内置默认表**不再提供 `*` 兜底**——未知模型明确显示为「部分用量未计价」，其 token 不进入估算金额；只有你在配置中**显式**配置 `*` 行时才启用兜底。
+- **金额**：仍以整数微单位（1e-6 币种单位）BigInt 累计；SQLite 只存 token/模型/时间戳，金额一律读取时推导，配置纠错后历史重算即可。
+- **币种**：同一 `pricingSchedules` 集合必须统一币种，混合币种会在配置校验时被拒绝（避免把不同币种静默加成一个 ¥ 数字）。
+
+`pricingSchedules` 示例（价格均为示意）：
+
+```yaml
+deepseek-usage:
+  pricingSchedules:
+    - id: legacy-2026-04-24
+      effectiveFrom: '2026-04-24T00:00:00+08:00'
+      timezone: Asia/Shanghai
+      currency: CNY
+      windows: [{ id: all-day, start: '00:00', end: '00:00' }]
+      models:
+        - model: deepseek-v4-flash
+          ratesByBand:
+            all-day: { cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2 }
+```
+
+旧版 `prices` 配置**继续原样工作**（无需手改 JSON）：它会被归一化为按 `effectiveFrom` 分组的全天 schedule（`user-legacy-*`）。旧数据中的请求时间以落库时间为近似（`request_time_ms = time_ms` 回填），新写入的数据记录真实请求开始时间。
 
 数据保存在 `~/.dsh/deepseek-usage/usage.db`（SQLite）。API Key 通过 `@deepseek-ai/dsh-credentials` 解析 `llm-deepseek` 的凭据引用（默认 `DEEPSEEK_API_KEY`），以 Host 进程环境变量作为明确 fallback。
 

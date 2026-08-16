@@ -126,6 +126,50 @@ describe('failures', () => {
   })
 })
 
+describe('requestTime (pricing boundary)', () => {
+  it('captures requestTime from step/start and keeps settlement time separate', () => {
+    // Request starts 23:59:59 (step/start), usage settles 00:00:03.
+    const lateStart = ev('step/start', { turn: 0, step: 0 }, 1, 86_399_000)
+    const lateUsage = ev('assistant/chunk', { turn: 0, step: 0, chunk: { type: 'usage', usage: USAGE } }, 2, 86_403_000)
+    const state = fold([header, lateStart, lateUsage])
+    expect(state.steps).toHaveLength(1)
+    const record = state.steps[0]!
+    expect(record.requestTime).toBe(86_399_000) // step/start time
+    expect(record.time).toBe(86_403_000) // settlement time — untouched
+    expect(record.requestTime).not.toBe(record.time)
+  })
+
+  it('preserves requestTime on a failed request', () => {
+    const failedStart = ev('step/start', { turn: 0, step: 0 }, 1, 86_399_000)
+    const state = fold([
+      header, failedStart,
+      ev('turn/end', { turn: 0, reason: { kind: 'error', error: { message: 'boom', code: 'X' } } }, 2, 86_403_000),
+    ])
+    expect(state.steps).toHaveLength(1)
+    expect(state.steps[0]!.failed).toBe(true)
+    expect(state.steps[0]!.requestTime).toBe(86_399_000)
+    expect(state.steps[0]!.time).toBe(86_403_000)
+  })
+
+  it('replays identical requestTime when refolding the same event log', () => {
+    const events: SessionEvent[] = [
+      header,
+      ev('step/start', { turn: 0, step: 0 }, 1, 86_399_000),
+      ev('assistant/chunk', { turn: 0, step: 0, chunk: { type: 'usage', usage: USAGE } }, 2, 86_403_000),
+      ev('step/start', { turn: 0, step: 1 }, 3, 86_405_000),
+      ev('assistant/message', { turn: 0, step: 1, message: { role: 'assistant', content: [] }, usage: { inputTokens: 10, outputTokens: 5 } }, 4, 86_410_000),
+      ev('turn/end', { turn: 0, reason: { kind: 'aborted', reason: { kind: 'user' } } }, 5, 86_412_000),
+    ]
+    const first = fold(events)
+    const second = fold(events)
+    expect(first.steps).toHaveLength(2)
+    expect(second.steps).toHaveLength(2)
+    expect(first.steps[0]!.requestTime).toBe(second.steps[0]!.requestTime)
+    expect(first.steps[1]!.requestTime).toBe(second.steps[1]!.requestTime)
+    expect(first.steps[1]!.failed).toBe(false)
+  })
+})
+
 describe('headers and unrelated events', () => {
   it('captures the latest header for following steps', () => {
     const state = fold([header, stepStart, ev('assistant/chunk', { turn: 0, step: 0, chunk: { type: 'usage', usage: USAGE } }, 3, 1300)])

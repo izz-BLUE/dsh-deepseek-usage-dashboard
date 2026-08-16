@@ -45,8 +45,23 @@ const SAMPLE: UsageStatsWire = {
     failedRequestCount: 0,
     cacheHitRate: null,
   })),
-  estimatedCost: { total: '1.234567', totalMicro: '1234567', currency: 'CNY' },
-  prices: { version: 3, updatedAt: '2026-01-01T00:00:00.000Z', entries: [] },
+  estimatedCost: {
+    total: '1.234567',
+    totalMicro: '1234567',
+    currency: 'CNY',
+    pricedRequestCount: 16,
+    unpricedRequestCount: 1,
+    unpriced: { cacheHitInputTokens: 10, cacheMissInputTokens: 20, outputTokens: 30 },
+    scheduleIdsUsed: ['legacy-2026-04-24'],
+  },
+  prices: {
+    version: 3,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    entries: [{ model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.02, cacheMissInputPricePerMillion: 1, outputPricePerMillion: 2, currency: 'CNY', effectiveFrom: '2026-04-24' }],
+    mode: 'legacy',
+    timezone: 'Asia/Shanghai',
+    schedules: [{ id: 'legacy-2026-04-24', effectiveFrom: '2026-04-24T00:00:00+08:00', currency: 'CNY', windowCount: 1 }],
+  },
   balance: {
     isAvailable: true,
     infos: [{ currency: 'CNY', totalBalance: '12.34', grantedBalance: '2.00', toppedUpBalance: '10.34' }],
@@ -125,6 +140,41 @@ describe('dashboard rendering', () => {
     renderDashboard('zh')
     expect(screen.getByText(/非官方账单/)).toBeDefined()
     expect(screen.getByText(/价格版本/)).toBeDefined()
+  })
+
+  it('renders the legacy pricing provenance under the estimate', () => {
+    renderDashboard('zh')
+    expect(screen.getByText(/旧版价格 · 2026-04-24/)).toBeDefined()
+  })
+
+  it('renders the partial-unpriced state without hiding the priced total', () => {
+    renderDashboard('zh')
+    expect(screen.getByText(/部分用量未计价/)).toBeDefined()
+    expect(screen.getByText(/1 个请求未计价/)).toBeDefined()
+    // The priced total is still shown as-is (¥1.234567 — the unpriced rows
+    // are NOT folded into it).
+    expect(screen.getByText(/¥1\.234567/)).toBeDefined()
+  })
+
+  it('renders time-aware schedule provenance and multiple-schedule days', () => {
+    document.documentElement.lang = 'zh'
+    const schedulesMode = {
+      ...SAMPLE,
+      prices: {
+        ...SAMPLE.prices,
+        mode: 'schedules' as const,
+        entries: [],
+        schedules: [{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windowCount: 2 }],
+      },
+      estimatedCost: { ...SAMPLE.estimatedCost, unpricedRequestCount: 0, scheduleIdsUsed: ['sched-2026-08-17'] },
+    }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: schedulesMode }} onRefresh={() => undefined} />)
+    expect(screen.getByText(/2026-08-17 · 分时段计价/)).toBeDefined()
+    expect(screen.queryByText(/部分用量未计价/)).toBeNull()
+
+    const multi = { ...schedulesMode, estimatedCost: { ...schedulesMode.estimatedCost, scheduleIdsUsed: ['a', 'b'] } }
+    render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: multi }} onRefresh={() => undefined} />)
+    expect(screen.getByText('多种价格计划')).toBeDefined()
   })
 
   it('renders an empty state without data', () => {
@@ -278,5 +328,31 @@ describe('settings form (staged)', () => {
     form.actions().discard()
     expect(store.getSnapshot().dirty).toBe(false)
     expect(store.getSnapshot().providerId).toBe('deepseek-official')
+  })
+
+  it('loads an old prices-only config without crashing (legacy mode)', () => {
+    const scope = fakeScope({
+      prices: [{ model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.5, cacheMissInputPricePerMillion: 2, outputPricePerMillion: 8, currency: 'CNY', effectiveFrom: '2025-09-05' }],
+    })
+    const form = new UsageSettingsForm(scope)
+    const state = form.bind().getSnapshot()
+    expect(state.pricingMode).toBe('legacy')
+    expect(state.pricingSchedules).toEqual([])
+    expect(state.prices).toEqual([{ model: 'deepseek-chat', cacheHitInputPricePerMillion: 0.5, cacheMissInputPricePerMillion: 2, outputPricePerMillion: 8, currency: 'CNY', effectiveFrom: '2025-09-05' }])
+    expect(state.invalid).toBe(false)
+  })
+
+  it('reads configured pricing schedules as read-only mode info', () => {
+    const scope = fakeScope({
+      pricingSchedules: [
+        { id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', timezone: 'Asia/Shanghai', currency: 'CNY', windows: [{ id: 'peak', start: '08:00', end: '18:00' }], models: [{ model: 'm', ratesByBand: { peak: { cacheHitInputPricePerMillion: 1, cacheMissInputPricePerMillion: 2, outputPricePerMillion: 3 } } }] },
+      ],
+    })
+    const form = new UsageSettingsForm(scope)
+    const state = form.bind().getSnapshot()
+    expect(state.pricingMode).toBe('schedules')
+    expect(state.pricingTimezone).toBe('Asia/Shanghai')
+    expect(state.pricingSchedules).toEqual([{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY' }])
+    expect(state.invalid).toBe(false)
   })
 })

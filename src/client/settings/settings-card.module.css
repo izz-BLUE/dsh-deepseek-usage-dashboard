@@ -77,6 +77,19 @@
   gap: 4px;
 }
 
+.scheduleList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scheduleList li {
+  color: var(--dsw-alias-label-secondary, inherit);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
 .label {
   color: var(--dsw-alias-label-primary, inherit);
   font-size: 12px;
