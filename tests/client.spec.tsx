@@ -341,6 +341,7 @@ describe('dashboard rendering', () => {
     } as unknown as UsageStatsWire
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: oldHost }} onRefresh={() => undefined} />)
     expect(screen.getByText(/¥1\.234567/)).toBeDefined()
+    expect(screen.getByText(/-- · 分时定价 · 北京时间 Asia\/Shanghai/)).toBeDefined()
     expect(screen.queryByText('空闲时段')).toBeNull()
     expect(screen.queryByText(/时段分解/)).toBeNull()
   })
