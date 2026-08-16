@@ -64,6 +64,7 @@ export declare const zh: {
     'panel.noData': string;
     'panel.notConfigured': string;
     'dock.today': string;
+    'dock.todayTooltip': string;
     'settings.title': string;
     'settings.description': string;
     'settings.enabled': string;
@@ -169,6 +170,7 @@ export declare const en: {
     'panel.noData': string;
     'panel.notConfigured': string;
     'dock.today': string;
+    'dock.todayTooltip': string;
     'settings.title': string;
     'settings.description': string;
     'settings.enabled': string;

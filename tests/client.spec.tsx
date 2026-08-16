@@ -377,6 +377,36 @@ describe('dock line', () => {
     expect(text).toContain('今日：命中 1,234 · 未命中 5,678 · 输出 901 · 估算 ¥1.234567 · 余额 ¥12.34')
   })
 
+  it('labels the today scope with a zh title tooltip', async () => {
+    document.documentElement.lang = 'zh'
+    class FakeApi extends UsageApi {
+      override async stats(): Promise<UsageStatsWire> {
+        return SAMPLE
+      }
+    }
+    const store = new UsageStore(new FakeApi())
+    setUsageStore(store)
+    await store.fetch()
+    render(<DockLine />)
+    const root = document.body.querySelector('div[title]') as HTMLElement | null
+    expect(root?.getAttribute('title')).toBe('今日统计：Asia/Shanghai 自然日，从 00:00 到当前。')
+  })
+
+  it('labels the today scope with an en title tooltip', async () => {
+    document.documentElement.lang = 'en'
+    class FakeApi extends UsageApi {
+      override async stats(): Promise<UsageStatsWire> {
+        return SAMPLE
+      }
+    }
+    const store = new UsageStore(new FakeApi())
+    setUsageStore(store)
+    await store.fetch()
+    render(<DockLine />)
+    const root = document.body.querySelector('div[title]') as HTMLElement | null
+    expect(root?.getAttribute('title')).toBe('Today statistics: current Asia/Shanghai calendar day, from 00:00 to now.')
+  })
+
   it('renders nothing before the first fetch', () => {
     document.documentElement.lang = 'zh'
     const store = new UsageStore(new (class extends UsageApi {})())
