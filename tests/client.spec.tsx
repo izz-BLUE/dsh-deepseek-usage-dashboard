@@ -329,14 +329,15 @@ describe('dashboard rendering', () => {
     expect(document.body.textContent).toContain('…')
   })
 
-  it('degrades gracefully on an old-host payload (band fields missing)', () => {
-    // A v0.1.0 Host serves no bandCosts / schedules / currentBand — the new
+  it('degrades gracefully on an old-host payload (v0.1.0 shape)', () => {
+    // The 0.1.0 Host serves estimatedCost as {total,totalMicro,currency} and
+    // prices as {version,updatedAt,entries} — no band fields at all. The new
     // card must render the total without crashing during the transition.
     document.documentElement.lang = 'zh'
     const oldHost = {
       ...SAMPLE,
-      estimatedCost: { ...SAMPLE.estimatedCost, bandCosts: undefined },
-      prices: { ...SAMPLE.prices, schedules: undefined, currentBand: undefined },
+      estimatedCost: { total: '1.234567', totalMicro: '1234567', currency: 'CNY' },
+      prices: { version: 1, updatedAt: '2026-08-14T06:41:50.591Z', entries: SAMPLE.prices.entries },
     } as unknown as UsageStatsWire
     render(<DashboardView snapshot={{ ...EMPTY_SNAPSHOT, data: oldHost }} onRefresh={() => undefined} />)
     expect(screen.getByText(/¥1\.234567/)).toBeDefined()

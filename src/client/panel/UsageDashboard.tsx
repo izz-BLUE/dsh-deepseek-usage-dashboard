@@ -255,6 +255,7 @@ function EstimateCard(props: { data: NonNullable<UsageStoreSnapshot['data']>; t:
   // the card must degrade, never crash, during a mixed-version transition.
   const schedules = prices.schedules ?? []
   const bandCosts = estimate.bandCosts ?? []
+  const scheduleIdsUsed = estimate.scheduleIdsUsed ?? []
   const band = prices.currentBand ?? null
 
   // Internal pricing-config identity — SECONDARY metadata, tooltip only.
@@ -263,7 +264,7 @@ function EstimateCard(props: { data: NonNullable<UsageStoreSnapshot['data']>; t:
     : ''}`
 
   // The active schedule (the current instant's, falling back to the day's).
-  const activeSchedule = schedules.find(schedule => schedule.id === (band?.scheduleId ?? estimate.scheduleIdsUsed[0] ?? schedules[0]?.id))
+  const activeSchedule = schedules.find(schedule => schedule.id === (band?.scheduleId ?? scheduleIdsUsed[0] ?? schedules[0]?.id))
 
   // Band badge: label + tone (green off-peak / amber peak / neutral).
   let badge: { bandId: string; label: string; tone: 'off' | 'peak' | 'neutral'; title: string } | null = null
@@ -328,7 +329,7 @@ function EstimateCard(props: { data: NonNullable<UsageStoreSnapshot['data']>; t:
         )
         : null}
       <span className={css.estimateProvenance} title={metaTitle}>{pricingProvenance(data, t)}</span>
-      {estimate.scheduleIdsUsed.length > 1
+      {scheduleIdsUsed.length > 1
         ? <span className={css.estimateBand}>{t('panel.pricingMultiple')}</span>
         : null}
       {currentWindow !== null
@@ -384,8 +385,9 @@ function pricingProvenance(data: NonNullable<UsageStoreSnapshot['data']>, t: typ
     const date = data.prices.entries[0]?.effectiveFrom ?? '--'
     return t('panel.pricingModeLegacy', { date })
   }
+  const scheduleIdsUsed = estimate.scheduleIdsUsed ?? []
   const scheduleId = data.prices.currentBand?.scheduleId
-    ?? estimate.scheduleIdsUsed[0]
+    ?? scheduleIdsUsed[0]
     ?? (data.prices.schedules ?? [])[0]?.id
   const schedule = (data.prices.schedules ?? []).find(item => item.id === scheduleId)
   const name = schedule === undefined ? '--' : scheduleName(schedule.id)
