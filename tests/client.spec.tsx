@@ -4,13 +4,14 @@
  */
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DashboardView } from '../src/client/panel/UsageDashboard.tsx'
 import { DockLine } from '../src/client/dock/DockLine.tsx'
 import { UsageApi, formatCount, type UsageStatsWire } from '../src/client/api.ts'
 import { UsageStore } from '../src/client/store.ts'
 import { setUsageStore } from '../src/client/store-host.ts'
 import { en, interpolate, tt, zh } from '../src/client/locales.ts'
+import { UsageSettingsCard } from '../src/client/settings/UsageSettingsCard.tsx'
 import { UsageSettingsForm, type UsageSettings } from '../src/client/settings/usage-settings-form.ts'
 import type { SettingsScope, SettingsScopeSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 
@@ -611,5 +612,62 @@ describe('settings form (staged)', () => {
     expect(state.pricingTimezone).toBe('Asia/Shanghai')
     expect(state.pricingSchedules).toEqual([{ id: 'sched-2026-08-17', effectiveFrom: '2026-08-17T00:00:00+08:00', currency: 'CNY', windows: [{ id: 'peak', start: '08:00', end: '18:00', bandId: undefined }] }])
     expect(state.invalid).toBe(false)
+  })
+})
+
+describe('slot registration (rc.7 keyed)', () => {
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
+
+  it('registers the settings card into settings.plugin.item keyed by the deepseek-usage namespace', async () => {
+    const { apply } = await import('../src/client/index.ts')
+    // The store polls /api/deepseek-usage/stats on start; never hit the network.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('no network in test')))
+
+    const injected: string[] = []
+    const registered: Array<{ name: string; key?: string; locale?: string; component: unknown }> = []
+    const ctx = {
+      effect: (fn: () => unknown) => fn(),
+      locale: { register: () => () => {}, bind: () => (key: string) => key },
+      slots: {
+        inject: (key: string, factory?: () => unknown) => {
+          injected.push(key)
+          factory?.()
+          return () => {}
+        },
+        register: (entry: { name: string; key?: string; locale?: string }, component: unknown) => {
+          registered.push({ ...entry, component })
+          return () => {}
+        },
+      },
+      settingsScope: {
+        bind: () => ({
+          getSnapshot: () => ({ status: 'unavailable' as const, writable: false }),
+          subscribe: () => () => {},
+          set: async () => {},
+          unset: async () => {},
+        }),
+      },
+      get: (name: string) => {
+        if (name === 'connection') return { isLoopback: true }
+        return undefined
+      },
+    }
+
+    apply(ctx as never)
+
+    // The composer dock line registers alongside the keyed settings card.
+    expect(injected).toEqual(['conversation.composer.dock', 'settings.plugin.item'])
+    expect(registered.some(entry => entry.name === 'conversation.composer.dock')).toBe(true)
+    const card = registered.find(entry => entry.name === 'settings.plugin.item')
+    expect(card).toBeDefined()
+    // rc.7 keyed contract: the key is the settings namespace the card edits.
+    expect(card?.key).toBe('deepseek-usage')
+    expect(card?.locale).toBe('deepseek-usage')
+    expect(card?.component).toBe(UsageSettingsCard)
+    // The legacy list-slot registration is gone.
+    expect(registered.some(entry => entry.name === 'web-ui.plugin.item')).toBe(false)
   })
 })

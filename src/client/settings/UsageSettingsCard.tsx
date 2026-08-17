@@ -3,9 +3,9 @@
  * route and the balance refresh interval, and edits the per-model price
  * table (DeepSeek adjusts prices — users must be able to update them).
  *
- * Registers into the `web-ui.plugin.item` child slot the Web UI plugin
- * group renders (same seat dsh-live-stats uses), bound to the
- * `deepseek-usage` settings namespace.
+ * Registers into the `settings.plugin.item` keyed slot (rc.7) under the
+ * `deepseek-usage` settings namespace the card edits (same seat the family
+ * plugins use).
  */
 
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -42,7 +42,7 @@ export class UsageSettingsCardController {
 
 /** Props the renderer binds for the card. */
 export type UsageSettingsCardProps =
-  PropsRuntime<'web-ui.plugin.item'>
+  PropsRuntime<'settings.plugin.item'>
   & PropsLocale<'deepseek-usage'>
   & InjectFace<UsageSettingsCardFace>
 

@@ -13,7 +13,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the LocaleNamespaceMap merge table and the
-// settings-surface SlotMap merges (settingsScope, web-ui.plugin.item).
+// settings-surface SlotMap merges (settingsScope, settings.plugin.item).
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -42,12 +42,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
   interface SlotMap {
     /**
-     * The child slot the Web UI plugin group declares; this card registers
-     * into the group instead of the top-level `settings.plugin.item` list.
-     * Spelled here with the same shape so this package can register without
-     * depending on the sibling UI package.
+     * The plugin-configuration section's card seat, keyed by the settings
+     * namespace the card edits (rc.7 keyed-slot contract, declared at runtime
+     * by the official settings-plugins surface). Spelled here with the same
+     * shape so this package can register without depending on the sibling UI
+     * package.
      */
-    'web-ui.plugin.item': { kind: 'list'; scope: 'root'; owner: SettingsPluginItemOwnerProps }
+    'settings.plugin.item': { kind: 'keyed'; scope: 'root'; owner: SettingsPluginItemOwnerProps }
   }
 }
 
@@ -100,14 +101,14 @@ export function apply(ctx: ClientContext): void {
     inject: () => ({}),
   }, DockLineEntry))
 
-  // Plugin configuration card over the `deepseek-usage` namespace.
+  // Plugin configuration card over the `deepseek-usage` namespace (rc.7
+  // keyed slot: the key must be the settings namespace the card edits).
   const settingsCard = new UsageSettingsCardController(
     ctx.settingsScope.bind<UsageSettings>({ namespace: USAGE_NS }),
   )
-  ctx.slots.inject('web-ui.plugin.item', () => ctx.slots.register({
-    name: 'web-ui.plugin.item',
-    id: 'deepseek-usage-dashboard',
-    order: 130,
+  ctx.slots.inject('settings.plugin.item', () => ctx.slots.register({
+    name: 'settings.plugin.item',
+    key: USAGE_NS,
     locale: NS,
     inject: () => settingsCard.inject(),
   }, UsageSettingsCard))
